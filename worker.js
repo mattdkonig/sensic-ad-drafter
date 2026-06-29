@@ -138,7 +138,7 @@ async function handlePreview(env, request) {
   const plans = [];
   for (const r of selected) {
     const plan = assemblePlan(r, { pageId });
-    if (r.creatives_folder && env.GOOGLE_DRIVE_API_KEY) {
+    if (env.WORKFLOW_MODE !== "manual" && r.creatives_folder && env.GOOGLE_DRIVE_API_KEY) {
       const driveData = await resolveDriveFolder(r.creatives_folder, env.GOOGLE_DRIVE_API_KEY);
       if (driveData.ok) {
         plan.drive_files = driveData.files;
@@ -411,7 +411,7 @@ export default {
     const url = new URL(request.url);
     const p = url.pathname;
     try {
-      if (p === "/" ) return html(UI_HTML);
+      if (p === "/" ) return html(UI_HTML.replace('__WORKFLOW_MODE__', env.WORKFLOW_MODE || 'auto'));
       if (p === "/api/login" && request.method === "POST") return await handleLogin(env, request);
       if (p === "/api/logout" && request.method === "POST") return await handleLogout();
       if (p === "/whoami") { const email = await currentEmail(env, request); return json({ ok: true, authed: email !== "unknown", email: email === "unknown" ? null : email }); }

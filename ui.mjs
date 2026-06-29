@@ -275,7 +275,8 @@ $('#preview').onclick=async()=>{
     if(p.ready){
      const mb=m?'<span class="badge b-ok">→ '+esc(m.adset.name)+' · '+m.score+'%</span>':'<span class="badge b-warn">no ad set match — using the one selected above</span>';
      let driveHtml='';
-     if(p.drive_files&&p.drive_files.length){
+     const mode='__WORKFLOW_MODE__';
+     if(mode!=='manual'&&p.drive_files&&p.drive_files.length){
        driveHtml='<div style="margin-top:12px;padding:8px;background:var(--panel);border-radius:6px;border:1px solid var(--line)"><div class="pc-l" style="margin:0 0 8px 0;font-weight:600">Drive Auto-Resolution</div>'+
        p.drive_files.map(f=>'<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" class="drive-file-cb" data-row="'+esc(p.row_id)+'" data-url="'+esc(f.download_url)+'" data-mime="'+esc(f.mime)+'" data-name="'+esc(f.name)+'" checked> '+esc(f.name)+' <span class="muted">('+Math.round(f.size/1024)+' KB)</span></label>').join('')+
        (p.drive_skipped&&p.drive_skipped.length?'<div class="muted" style="font-size:12px;margin-top:8px">Skipped '+p.drive_skipped.length+' unsupported file(s)</div>':'')+'</div>';
@@ -283,7 +284,7 @@ $('#preview').onclick=async()=>{
      ctrl='<div class="pc-match">'+mb+'</div><label class="pc-l">Target ad set</label><select class="creative-adset" data-row="'+esc(p.row_id)+'">'+adsetOptionsHtml(m?m.adset.id:'')+'</select>'
       +'<label class="pc-l">Button (CTA)</label><select class="creative-cta" data-row="'+esc(p.row_id)+'">'+CTA_OPTS.map(o=>'<option value="'+o.t+'"'+(o.v===(p.cta&&p.cta.enum)?' selected':'')+'>'+o.t+'</option>').join('')+'</select>'
       +driveHtml
-      +'<label class="pc-l" style="margin-top:12px">Or attach manually (JPG/PNG or MP4/MOV)</label><input type="file" accept="image/png,image/jpeg,video/mp4,video/quicktime" multiple class="creative-file" data-row="'+esc(p.row_id)+'">'
+      +'<label class="pc-l" style="margin-top:12px">'+(driveHtml?'Or attach manually':'Creative')+' (JPG/PNG or MP4/MOV)</label><input type="file" accept="image/png,image/jpeg,video/mp4,video/quicktime" multiple class="creative-file" data-row="'+esc(p.row_id)+'">'
       +(row.creatives_folder?'<a class="pc-l" style="display:block;color:var(--accent);margin-top:8px" href="'+esc(row.creatives_folder)+'" target="_blank" rel="noopener">📁 Open creative folder ↗</a>':'');
     }
     return '<div class="pcard"><div class="thumb">🖼</div><div class="pc-b"><div class="pc-t">'+esc(p.ad_name)+'</div><div class="pc-m">'+mhtml+'</div>'+b+' '+iss+ctrl+'</div></div>'}).join('')+'</div>';
