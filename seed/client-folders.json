@@ -1,0 +1,15 @@
+{
+  "_note": "Drive sources for the bible sync (/api/bible-sync). 'sheetId' is the client's bible spreadsheet; schema 'adtracker' = standard single 'Ad Tracker' tab; schema 'chief' = one tab per market. Once GOOGLE_SERVICE_ACCOUNT_JSON is set on the worker AND the service account email is shared (Viewer) on each sheet, the sync exports each tab as CSV, parses via bible-parse.mjs, and writes DRAFTER_KV bible:{slug} (overriding the seed).",
+  "clients": {
+    "chief-aus":       { "sheetId": "1LDbTkKB41pU5wMQjJdu-_EeayWq9eFHWgaFG_IoM2AI", "schema": "chief", "tab": "READY FOR UPLOAD AU" },
+    "chief-usa":       { "sheetId": "1LDbTkKB41pU5wMQjJdu-_EeayWq9eFHWgaFG_IoM2AI", "schema": "chief", "tab": "READY FOR UPLOAD US" },
+    "shredded":        { "sheetId": "1l5JB2GoB75mL_dZkIxCsf8PTobjmrvsR", "schema": "adtracker", "tab": "Ad Tracker" },
+    "mypause":         { "sheetId": "1MJdfhIKf--H3T7FcdVfT4CNWSae9J07t", "schema": "adtracker", "tab": "Ad Tracker" },
+    "xero-shoes":      { "sheetId": "1pml1KsTIg9UBqFnbGoHVeArvCgEZ8CMF", "schema": "adtracker", "tab": "Ad Tracker" },
+    "koa-kids":        { "sheetId": "1mKNEoRQq7dvfXvkN2uiRo1dQtyOYOikj", "schema": "adtracker", "tab": "Ad Tracker" },
+    "reignite":        { "sheetId": "13P2i7arM7pF22PF0tjdopOTPcBUBtIGL", "schema": "adtracker", "tab": "Ad Tracker" },
+    "double-roasters": { "sheetId": "1BKgi4QYzbfkyQxIYvCAY9zHYFplJkAdW", "schema": "adtracker", "tab": "Ad Tracker" },
+    "aussie-pharma":   { "sheetId": "1OmIcom8xOnmqDnwLR4WgZhuxrVvc72xy", "schema": "adtracker", "tab": "Ad Tracker" },
+    "therapy-lights":  { "sheetId": "1s5ZWMXZJWDjm-ri6GODV2kc3qFd6vtqbB6wGoS9fbpM", "schema": "adtracker", "tab": "Ad Tracker", "note": "title is 'Therapy Lights Client Bible + Account Review (Recycling)' — verify tab name on first sync" }
+  }
+}

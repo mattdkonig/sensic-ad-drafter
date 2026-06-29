@@ -1,0 +1,32 @@
+[
+  {
+    "id": "xero-eofy-batch-one",
+    "uploaded": false,
+    "concept": "EOFY SALE > Batch One",
+    "objective": "Purchases",
+    "type": "Static",
+    "num_creatives": 23,
+    "primary_text": "This is the one you've been waiting for. Xero Shoes EOFY Sale is ON. 25% off sitewide. Up to 40% off selected styles. Your feet deserve better and right now, they can get it for less. Sale ends June 30. Don't sit on this one.",
+    "headline": "Your feet called. EOFY Sale is here.",
+    "cta": "Shop Now",
+    "landing_url": "https://www.xeros.com.au/sale/",
+    "campaign": "SENSIC | EOFY SALE 2026",
+    "adset_hint": "OPEN > EOFY SALE > Batch One > 19th June",
+    "creatives_folder": null
+  },
+  {
+    "id": "xero-local-sydney-store",
+    "uploaded": false,
+    "concept": "Local Sydney Ads for New Store",
+    "objective": "Purchases",
+    "type": "Static",
+    "num_creatives": 14,
+    "primary_text": "Your feet weren't designed to be squeezed into narrow shoes all day. Experience the comfort of a wide toe box, zero-drop design, and natural movement footwear at the new Xero Shoes Alexandria store. Come in, try a pair on, and feel the difference for yourself.",
+    "headline": "Now Open in Alexandria",
+    "cta": "Visit Store",
+    "landing_url": "https://www.xeros.com.au/",
+    "campaign": "SENSIC | Local Store",
+    "adset_hint": "Alexandria Store > Local",
+    "creatives_folder": null
+  }
+]

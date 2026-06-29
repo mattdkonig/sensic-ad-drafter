@@ -1,0 +1,16 @@
+{
+  "_generated": "2026-06-21 — from Basecamp active projects (matched to account-map). Refreshed live via DRAFTER_KV clients:active when present.",
+  "active": {
+    "chief-aus": "Chief Nutrition",
+    "chief-usa": "Chief Nutrition",
+    "xero-shoes": "Xero Shoes",
+    "reignite": "Reignite Retreats",
+    "aussie-pharma": "Aussie Pharma",
+    "mypause": "MyPause",
+    "therapy-lights": "TherapyLights Australia (Jon)",
+    "double-roasters": "Double Roasters",
+    "koa-kids": "Koa Kids",
+    "shredded": "Shredded HP"
+  },
+  "inactive": ["wolki-fresh", "fem21", "iodd", "libby-babet"]
+}

@@ -1,0 +1,27 @@
+name = "sensic-ad-drafter"
+main = "worker.js"
+compatibility_date = "2024-12-01"
+# Pinned account — avoids /memberships lookup when OAuth lacks User Details Read.
+account_id = "0c3b7e01b895f4624d0d976586f23eb8"
+
+[triggers]
+crons = []
+
+[vars]
+SELF_URL = "https://sensic-ad-drafter.matt-0c3.workers.dev"
+# Build label lives in worker.js (BUILD_LABEL const) and is what /health reports.
+
+# Service binding to creative-brain (reuse its data APIs without public fetch).
+[[services]]
+binding = "BRAIN"
+service = "creative-brain"
+
+# --- KV: audit log + bible write-back (drafted-row dedupe) ---
+[[kv_namespaces]]
+binding = "DRAFTER_KV"
+id = "6bb4a702913844dc9dad84a28b5a1398"
+
+# --- Secrets (set via `wrangler secret put NAME` inside this dir) ---
+#   FB_ACCESS_TOKEN   reuse from creative-brain
+#   FB_APP_SECRET     reuse from creative-brain (enables appsecret_proof)
+#   BRAIN_API_TOKEN   reuse from .brain-token.local (interim auth until Cloudflare Access SSO, M0.5)
