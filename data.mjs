@@ -5,8 +5,8 @@
 //   - ad sets: live from Meta (Worker already holds FB_ACCESS_TOKEN).
 //   - bible rows: from DRAFTER_KV (synced in M2); empty-state until then.
 
-import accountMap from "../lib/account-map.json" with { type: "json" };
-import { graphGet } from "../lib/fb-draft-ads.mjs";
+import accountMap from "./lib/account-map.json" with { type: "json" };
+import { graphGet } from "./lib/fb-draft-ads.mjs";
 import activeSeed from "./seed/active-clients.json" with { type: "json" };
 import bibles from "./seed/bibles.json" with { type: "json" };
 

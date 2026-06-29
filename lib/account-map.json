@@ -1,0 +1,23 @@
+{
+  "_meta": {
+    "source": "Derived from CLIENTS + CLIENT_REGISTRY in worker.js (14 clients). Cross-checked eval/raw *_account_id where samples exist.",
+    "unmapped_clients": []
+  },
+  "10153388789321214": { "slug": "chief-aus", "name": "Chief Nutrition AUS" },
+  "754219040392178": { "slug": "chief-aus", "name": "Chief Nutrition AUS" },
+  "2673060809411327": { "slug": "therastore", "name": "TheraStore" },
+  "288953275744541": { "slug": "therastore", "name": "TheraStore" },
+  "275188403088342": { "slug": "xero-shoes", "name": "Xero Shoes" },
+  "529771843043350": { "slug": "reignite", "name": "Reignite Retreats" },
+  "1182234932136425": { "slug": "aussie-pharma", "name": "Aussie Pharma Direct" },
+  "2912848208859541": { "slug": "wolki-fresh", "name": "Wolki Farm" },
+  "9222122767901187": { "slug": "mypause", "name": "MyPause Health" },
+  "188912872808014": { "slug": "therapy-lights", "name": "Therapy Lights" },
+  "238472114180605": { "slug": "double-roasters", "name": "Double Roasters" },
+  "18881819": { "slug": "fem21", "name": "Fem21" },
+  "219990731927957": { "slug": "iodd", "name": "Institute of Digital Dentistry" },
+  "1116470807358962": { "slug": "chief-usa", "name": "Chief Nutrition USA" },
+  "4114297198828869": { "slug": "koa-kids", "name": "Koa Kids" },
+  "432876567660795": { "slug": "shredded", "name": "Shredded HP" },
+  "1281656031929698": { "slug": "libby-babet", "name": "Libby Babet" }
+}

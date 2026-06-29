@@ -1,9 +1,9 @@
 // sensic-ad-drafter/worker.js
 // Team tool: turn the client bible into PAUSED draft ads in Meta, with a QA gate.
 // Subdir Worker (sibling to creative-brief / sensic-dispatcher). Reuses the proven
-// engine in ../lib/fb-draft-ads.mjs. M0 = scaffold + health + engine routes.
+// engine in ./lib/fb-draft-ads.mjs. M0 = scaffold + health + engine routes.
 
-import { createDraftAd, createCleanDraft, uploadAdImage, uploadAdVideo, waitVideoReady, getVideoThumbnail, createCleanVideoDraft, copyObject, configureNewObject, qaAd, XERO, accountCanonicalPage } from "../lib/fb-draft-ads.mjs";
+import { createDraftAd, createCleanDraft, uploadAdImage, uploadAdVideo, waitVideoReady, getVideoThumbnail, createCleanVideoDraft, copyObject, configureNewObject, qaAd, XERO, accountCanonicalPage } from "./lib/fb-draft-ads.mjs";
 import { activeClients, listAdsets, accountsForSlug, nameForSlug, bibleRows, markUploaded } from "./data.mjs";
 import { assemblePlan, normalizeCta } from "./assembly.mjs";
 import { UI_HTML } from "./ui.mjs";
