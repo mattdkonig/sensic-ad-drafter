@@ -274,10 +274,17 @@ $('#preview').onclick=async()=>{
     let ctrl='';
     if(p.ready){
      const mb=m?'<span class="badge b-ok">→ '+esc(m.adset.name)+' · '+m.score+'%</span>':'<span class="badge b-warn">no ad set match — using the one selected above</span>';
+     let driveHtml='';
+     if(p.drive_files&&p.drive_files.length){
+       driveHtml='<div style="margin-top:12px;padding:8px;background:var(--panel);border-radius:6px;border:1px solid var(--line)"><div class="pc-l" style="margin:0 0 8px 0;font-weight:600">Drive Auto-Resolution</div>'+
+       p.drive_files.map(f=>'<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" class="drive-file-cb" data-row="'+esc(p.row_id)+'" data-url="'+esc(f.download_url)+'" data-mime="'+esc(f.mime)+'" data-name="'+esc(f.name)+'" checked> '+esc(f.name)+' <span class="muted">('+Math.round(f.size/1024)+' KB)</span></label>').join('')+
+       (p.drive_skipped&&p.drive_skipped.length?'<div class="muted" style="font-size:12px;margin-top:8px">Skipped '+p.drive_skipped.length+' unsupported file(s)</div>':'')+'</div>';
+     }
      ctrl='<div class="pc-match">'+mb+'</div><label class="pc-l">Target ad set</label><select class="creative-adset" data-row="'+esc(p.row_id)+'">'+adsetOptionsHtml(m?m.adset.id:'')+'</select>'
       +'<label class="pc-l">Button (CTA)</label><select class="creative-cta" data-row="'+esc(p.row_id)+'">'+CTA_OPTS.map(o=>'<option value="'+o.t+'"'+(o.v===(p.cta&&p.cta.enum)?' selected':'')+'>'+o.t+'</option>').join('')+'</select>'
-      +'<label class="pc-l">Creative (JPG/PNG or MP4/MOV)</label><input type="file" accept="image/png,image/jpeg,video/mp4,video/quicktime" multiple class="creative-file" data-row="'+esc(p.row_id)+'">'
-      +(row.creatives_folder?'<a class="pc-l" style="display:block;color:var(--accent)" href="'+esc(row.creatives_folder)+'" target="_blank" rel="noopener">📁 Open creative folder ↗</a>':'');
+      +driveHtml
+      +'<label class="pc-l" style="margin-top:12px">Or attach manually (JPG/PNG or MP4/MOV)</label><input type="file" accept="image/png,image/jpeg,video/mp4,video/quicktime" multiple class="creative-file" data-row="'+esc(p.row_id)+'">'
+      +(row.creatives_folder?'<a class="pc-l" style="display:block;color:var(--accent);margin-top:8px" href="'+esc(row.creatives_folder)+'" target="_blank" rel="noopener">📁 Open creative folder ↗</a>':'');
     }
     return '<div class="pcard"><div class="thumb">🖼</div><div class="pc-b"><div class="pc-t">'+esc(p.ad_name)+'</div><div class="pc-m">'+mhtml+'</div>'+b+' '+iss+ctrl+'</div></div>'}).join('')+'</div>';
   const ctaAll=$('#cta-all');if(ctaAll)ctaAll.onchange=()=>{document.querySelectorAll('.creative-cta').forEach(s=>{s.value=ctaAll.value})};
@@ -294,19 +301,22 @@ $('#create').onclick=async()=>{
  document.querySelectorAll('.creative-cta').forEach(s=>{ctaByRow[s.dataset.row]=s.value});
  document.querySelectorAll('.creative-adset').forEach(s=>{adsetByRow[s.dataset.row]=s.value||''});
  const files=[];document.querySelectorAll('.creative-file').forEach(inp=>[...inp.files].forEach(f=>files.push({row:inp.dataset.row,file:f})));
- if(!files.length){$('#status').innerHTML='<span style="color:var(--bad)">Attach a JPG/PNG creative to a ready row first, then Create.</span>';banner('Attach at least one JPG/PNG creative to a ready row first.','err');$('#status').scrollIntoView({behavior:'smooth',block:'center'});return}
+ const driveFiles=[];document.querySelectorAll('.drive-file-cb:checked').forEach(cb=>driveFiles.push({row:cb.dataset.row,url:cb.dataset.url,mime:cb.dataset.mime,name:cb.dataset.name}));
+ if(!files.length&&!driveFiles.length){$('#status').innerHTML='<span style="color:var(--bad)">Attach a JPG/PNG creative to a ready row first, then Create.</span>';banner('Attach at least one JPG/PNG creative to a ready row first.','err');$('#status').scrollIntoView({behavior:'smooth',block:'center'});return}
  // Resolve each row's target ad set (per-row match/override, else the global selection).
  const targets={};let missing=0;
  files.forEach(({row})=>{const t=adsetByRow[row]||adset;targets[row]=t;if(!t)missing++;});
+ driveFiles.forEach(({row})=>{const t=adsetByRow[row]||adset;targets[row]=t;if(!t)missing++;});
  if(missing){banner('Some rows have no target ad set. Pick a default ad set above, or choose one per card.','err');return}
  const tids=[...new Set(Object.values(targets))];
  const tnames=tids.map(id=>{const a=adsetById(id);return a?a.name:id;});
  const active=tids.map(adsetById).filter(a=>a&&a.status==='ACTIVE');
- let msg='Create '+files.length+' PAUSED draft ad(s) across '+tids.length+' ad set'+(tids.length===1?'':'s')+':\\n\\n• '+tnames.join('\\n• ')+'\\n\\nThe ads are created PAUSED — they will NOT go live; you review and publish in Ads Manager.';
+ const totalCount=files.length+driveFiles.length;
+ let msg='Create '+totalCount+' PAUSED draft ad(s) across '+tids.length+' ad set'+(tids.length===1?'':'s')+':\\n\\n• '+tnames.join('\\n• ')+'\\n\\nThe ads are created PAUSED — they will NOT go live; you review and publish in Ads Manager.';
  if(active.length)msg+='\\n\\nNote: '+active.length+' target ad set'+(active.length===1?' is':'s are')+' ACTIVE, but the new ads stay PAUSED regardless.';
  if(!confirm(msg))return;
  $('#create').disabled=true;const items=[],upErr=[];let done=0;
- for(const {row,file} of files){done++;$('#status').textContent='Uploading creative '+done+' of '+files.length+'…';
+ for(const {row,file} of files){done++;$('#status').textContent='Uploading attached creative '+done+' of '+files.length+'…';
   try{const fd=new FormData();fd.set('file',file);
    const isVid=(file.type||'').indexOf('video/')===0||/\\.(mp4|mov|m4v)$/i.test(file.name);
    if(isVid)$('#status').textContent='Uploading video '+done+' of '+files.length+' (Meta will process it)…';
@@ -316,6 +326,9 @@ $('#create').onclick=async()=>{
    else if(j.ok&&j.video_id)items.push({row_id:row,video_id:j.video_id,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined});
    else upErr.push(file.name+': '+(j.message||'upload rejected'));
   }catch(_){upErr.push(file.name+': network error')}}
+ for(const {row,url,mime,name} of driveFiles){
+  items.push({row_id:row,drive_file_url:url,drive_file_mime:mime,drive_file_name:name,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined});
+ }
  if(upErr.length)banner((items.length?'Some creatives failed to upload ('+upErr.length+' of '+files.length+'): ':'All uploads failed: ')+esc(upErr.join('; ')),'err');
  if(!items.length){$('#status').textContent='';$('#create').disabled=false;return}
  $('#status').textContent='Creating '+items.length+' PAUSED draft(s)…';

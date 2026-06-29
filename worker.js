@@ -8,6 +8,7 @@ import { activeClients, listAdsets, accountsForSlug, nameForSlug, bibleRows, mar
 import { assemblePlan, normalizeCta } from "./assembly.mjs";
 import { UI_HTML } from "./ui.mjs";
 import { issueSession, verifySession, readCookie, SESSION_COOKIE, setCookieHeader, clearCookieHeader } from "./auth.mjs";
+import { resolveDriveFolder } from "./drive.mjs";
 
 const BUILD_LABEL = "v0.9.1-loop";
 
@@ -133,7 +134,28 @@ async function handlePreview(env, request) {
 
   const { rows } = await bibleRows(env, slug);
   const selected = Array.isArray(body.row_ids) && body.row_ids.length ? rows.filter((r) => body.row_ids.includes(r.id)) : rows;
-  const plans = selected.map((r) => assemblePlan(r, { pageId }));
+  
+  const plans = [];
+  for (const r of selected) {
+    const plan = assemblePlan(r, { pageId });
+    if (r.creatives_folder && env.GOOGLE_DRIVE_API_KEY) {
+      const driveData = await resolveDriveFolder(r.creatives_folder, env.GOOGLE_DRIVE_API_KEY);
+      if (driveData.ok) {
+        plan.drive_files = driveData.files;
+        plan.drive_skipped = driveData.skipped;
+        if (driveData.files.length === 0) {
+          plan.issues.push({ level: "FAIL", msg: "Drive folder contains no Meta-acceptable finals (JPG/PNG/MP4)" });
+          plan.ready = false;
+        } else {
+          plan.issues = plan.issues.filter(i => !i.msg.includes("no Drive creatives folder linked"));
+          plan.issues.push({ level: "INFO", msg: `Resolved ${driveData.files.length} creative(s) from Drive` });
+        }
+      } else {
+        plan.issues.push({ level: "WARN", msg: `Drive resolution failed: ${driveData.error}` });
+      }
+    }
+    plans.push(plan);
+  }
 
   return json({
     ok: true,
@@ -283,19 +305,39 @@ async function handleCreateDrafts(env, request) {
     // Per-row CTA override from the UI dropdown (lets staff fix a blank/invalid bible CTA).
     if (item.cta) { plan.cta = normalizeCta(item.cta); plan.issues = (plan.issues || []).filter((i) => !/^CTA /.test(i.msg)); plan.ready = (plan.issues || []).filter((i) => i.level === "FAIL").length === 0; }
     if (!plan.ready) { results.push({ row_id: rowId, ok: false, error: "plan not ready", issues: plan.issues }); continue; }
-    if (!item.image_hash && !item.image_url && !item.video_id) { results.push({ row_id: rowId, ok: false, error: "no creative (attach an image or a video)" }); continue; }
+    if (!item.image_hash && !item.image_url && !item.video_id && !item.drive_file_url) { results.push({ row_id: rowId, ok: false, error: "no creative (attach an image or a video, or provide a drive_file_url)" }); continue; }
     const adsetId = item.adset_id || defaultAdset;
     if (!adsetId) { results.push({ row_id: rowId, ok: false, error: "no ad set for this row (no match and no default selected)" }); continue; }
     try {
       let created;
-      if (item.video_id) {
-        const ready = await waitVideoReady({ ...fbArgs(env), videoId: item.video_id });
+      let finalImageHash = item.image_hash;
+      let finalVideoId = item.video_id;
+
+      if (item.drive_file_url) {
+        try {
+          const res = await fetch(item.drive_file_url);
+          if (!res.ok) throw new Error(`Failed to download from Drive: ${res.status}`);
+          const bytes = await res.arrayBuffer();
+          const isVideo = item.drive_file_mime === "video/mp4" || item.drive_file_mime === "video/quicktime";
+          if (isVideo) {
+            finalVideoId = await uploadAdVideo({ ...fbArgs(env), accountId, bytes, filename: item.drive_file_name || "video.mp4" });
+          } else {
+            finalImageHash = await uploadAdImage({ ...fbArgs(env), accountId, bytes, filename: item.drive_file_name || "image.jpg" });
+          }
+        } catch (err) {
+          results.push({ row_id: rowId, ok: false, error: `Drive download/upload failed: ${err.message}` });
+          continue;
+        }
+      }
+
+      if (finalVideoId) {
+        const ready = await waitVideoReady({ ...fbArgs(env), videoId: finalVideoId });
         if (ready === "error") { results.push({ row_id: rowId, ok: false, error: "Meta could not process this video" }); continue; }
         if (ready !== "ready") { results.push({ row_id: rowId, ok: false, error: "video still processing on Meta — click Create again in ~30s" }); continue; }
-        const thumb = await getVideoThumbnail({ ...fbArgs(env), videoId: item.video_id });
-        created = await createCleanVideoDraft({ ...fbArgs(env), accountId, adsetId, plan, videoId: item.video_id, thumbnailUrl: thumb, instagramActorId: item.instagram_actor_id });
+        const thumb = await getVideoThumbnail({ ...fbArgs(env), videoId: finalVideoId });
+        created = await createCleanVideoDraft({ ...fbArgs(env), accountId, adsetId, plan, videoId: finalVideoId, thumbnailUrl: thumb, instagramActorId: item.instagram_actor_id });
       } else {
-        created = await createCleanDraft({ ...fbArgs(env), accountId, adsetId, plan, imageHash: item.image_hash, imageUrl: item.image_url, instagramActorId: item.instagram_actor_id });
+        created = await createCleanDraft({ ...fbArgs(env), accountId, adsetId, plan, imageHash: finalImageHash, imageUrl: item.image_url, instagramActorId: item.instagram_actor_id });
       }
       let qa = null;
       try { const q = await qaAd({ ...fbArgs(env), adId: created.ad_id, expectedPage: pageId || "", expectedAccount: accountId }); qa = { pass: q.pass, fails: q.fails, warns: q.warns }; } catch { qa = null; }
