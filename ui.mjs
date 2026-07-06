@@ -283,7 +283,12 @@ $('#preview').onclick=async()=>{
      const mode='__WORKFLOW_MODE__';
      if(mode!=='manual'&&p.drive_files&&p.drive_files.length){
        driveHtml='<div style="margin-top:12px;padding:8px;background:var(--panel);border-radius:6px;border:1px solid var(--line)"><div class="pc-l" style="margin:0 0 8px 0;font-weight:600">Drive Auto-Resolution</div>'+
-       p.drive_files.map(f=>'<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" class="drive-file-cb" data-row="'+esc(p.row_id)+'" data-url="'+esc(f.download_url)+'" data-mime="'+esc(f.mime)+'" data-name="'+esc(f.name)+'" checked> '+esc(f.name)+' <span class="muted">('+Math.round(f.size/1024)+' KB)</span></label>').join('')+
+       p.drive_files.map(f=>{
+         const isChecked = f.matchScore > 0 ? 'checked' : '';
+         const badgeClass = f.matchScore >= 0.8 ? 'b-ok' : (f.matchScore > 0 ? 'b-warn' : 'b-bad');
+         const reason = f.matchReason ? ` - ${f.matchReason}` : '';
+         return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" class="drive-file-cb" data-row="'+esc(p.row_id)+'" data-url="'+esc(f.download_url)+'" data-mime="'+esc(f.mime)+'" data-name="'+esc(f.name)+'" data-format="'+esc(f.format)+'" '+isChecked+'> <span class="badge '+badgeClass+'">'+f.format+'</span> '+esc(f.name)+' <span class="muted">('+Math.round(f.size/1024)+' KB'+reason+')</span></label>';
+       }).join('')+
        (p.drive_skipped&&p.drive_skipped.length?'<div class="muted" style="font-size:12px;margin-top:8px">Skipped '+p.drive_skipped.length+' unsupported file(s)</div>':'')+'</div>';
      }
      ctrl='<div class="pc-match">'+mb+'</div><label class="pc-l">Target ad set</label><select class="creative-adset" data-row="'+esc(p.row_id)+'">'+adsetOptionsHtml(m?m.adset.id:'')+'</select>'
@@ -307,7 +312,7 @@ $('#create').onclick=async()=>{
  document.querySelectorAll('.creative-cta').forEach(s=>{ctaByRow[s.dataset.row]=s.value});
  document.querySelectorAll('.creative-adset').forEach(s=>{adsetByRow[s.dataset.row]=s.value||''});
  const files=[];document.querySelectorAll('.creative-file').forEach(inp=>[...inp.files].forEach(f=>files.push({row:inp.dataset.row,file:f})));
- const driveFiles=[];document.querySelectorAll('.drive-file-cb:checked').forEach(cb=>driveFiles.push({row:cb.dataset.row,url:cb.dataset.url,mime:cb.dataset.mime,name:cb.dataset.name}));
+ const driveFiles=[];document.querySelectorAll('.drive-file-cb:checked').forEach(cb=>driveFiles.push({row:cb.dataset.row,url:cb.dataset.url,mime:cb.dataset.mime,name:cb.dataset.name,format:cb.dataset.format}));
  if(!files.length&&!driveFiles.length){$('#status').innerHTML='<span style="color:var(--bad)">Attach a JPG/PNG creative to a ready row first, then Create.</span>';banner('Attach at least one JPG/PNG creative to a ready row first.','err');$('#status').scrollIntoView({behavior:'smooth',block:'center'});return}
  // Resolve each row's target ad set (per-row match/override, else the global selection).
  const targets={};let missing=0;
@@ -332,8 +337,8 @@ $('#create').onclick=async()=>{
    else if(j.ok&&j.video_id)items.push({row_id:row,video_id:j.video_id,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined});
    else upErr.push(file.name+': '+(j.message||'upload rejected'));
   }catch(_){upErr.push(file.name+': network error')}}
- for(const {row,url,mime,name} of driveFiles){
-  items.push({row_id:row,drive_file_url:url,drive_file_mime:mime,drive_file_name:name,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined});
+ for(const {row,url,mime,name,format} of driveFiles){
+  items.push({row_id:row,drive_file_url:url,drive_file_mime:mime,drive_file_name:name,drive_file_format:format,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined});
  }
  if(upErr.length)banner((items.length?'Some creatives failed to upload ('+upErr.length+' of '+files.length+'): ':'All uploads failed: ')+esc(upErr.join('; ')),'err');
  if(!items.length){$('#status').textContent='';$('#create').disabled=false;return}

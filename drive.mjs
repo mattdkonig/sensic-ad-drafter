@@ -3,48 +3,153 @@
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 
-// Extract folder ID from a Google Drive URL
-export function extractFolderId(url) {
+export function extractDriveId(url) {
   if (!url) return null;
-  const match = url.match(/folders\/([a-zA-Z0-9_-]+)/);
-  if (match) return match[1];
+  const folderMatch = url.match(/folders\/([a-zA-Z0-9_-]+)/);
+  if (folderMatch) return { id: folderMatch[1], type: "folder" };
+  const fileMatch = url.match(/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileMatch) return { id: fileMatch[1], type: "file" };
   const idMatch = url.match(/id=([a-zA-Z0-9_-]+)/);
-  if (idMatch) return idMatch[1];
+  if (idMatch) return { id: idMatch[1], type: "unknown" };
   return null;
 }
 
-// List files in a Drive folder, filtering for Meta-acceptable formats
-export async function resolveDriveFolder(folderUrl, apiKey) {
-  const folderId = extractFolderId(folderUrl);
-  if (!folderId) return { ok: false, error: "invalid_folder_url" };
+export function extractMultipleDriveUrls(text) {
+  if (!text) return [];
+  const urls = text.split(/[\s,;\n]+/).map(s => s.trim()).filter(s => s.startsWith('http'));
+  return urls;
+}
+
+export function detectFormatFromName(name) {
+  const n = name.toLowerCase();
+  if (n.includes("1x1") || n.includes("1-1") || n.includes("1:1") || n.includes("square")) return "1:1";
+  if (n.includes("4x5") || n.includes("4-5") || n.includes("4:5") || n.includes("portrait")) return "4:5";
+  if (n.includes("9x16") || n.includes("9-16") || n.includes("9:16") || n.includes("story") || n.includes("stories") || n.includes("reel")) return "9:16";
+  if (n.includes("16x9") || n.includes("16-9") || n.includes("16:9") || n.includes("landscape")) return "16:9";
+  return "unknown";
+}
+
+export function normalizeName(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+export function scoreMatch(fileName, adName) {
+  let score = 0;
+  let reason = [];
+  const normFile = normalizeName(fileName);
+  const normAd = normalizeName(adName);
+
+  if (normFile.includes(normAd)) {
+    score += 0.8;
+    reason.push("Ad name match");
+  } else {
+    // Partial match
+    const adWords = normAd.split(" ");
+    let matches = 0;
+    for (const w of adWords) {
+      if (w.length > 2 && normFile.includes(w)) matches++;
+    }
+    if (matches > 0) {
+      score += (matches / adWords.length) * 0.5;
+      reason.push("Partial ad name match");
+    }
+  }
+
+  const n = fileName.toLowerCase();
+  if (n.includes("approved") || n.includes("final") || n.includes("v2") || n.includes("v3")) {
+    score += 0.1;
+    reason.push("Approved/Final version");
+  }
+  if (n.includes("draft") || n.includes("old") || n.includes("archive")) {
+    score -= 0.5;
+    reason.push("Draft/Old version penalty");
+  }
+
+  return { score, reason: reason.join(", ") };
+}
+
+export async function resolveDriveLink(url, apiKey, adName = "") {
+  const driveInfo = extractDriveId(url);
+  if (!driveInfo) return { ok: false, error: "invalid_drive_url" };
   if (!apiKey) return { ok: false, error: "no_drive_api_key" };
 
   try {
-    // We only want images and videos. We can filter client-side or via query.
-    // q: 'folderId' in parents and trashed = false
-    const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
-    const fields = encodeURIComponent("files(id,name,mimeType,size,webContentLink)");
-    const res = await fetch(`${DRIVE_API}/files?q=${q}&fields=${fields}&key=${apiKey}`);
-    const data = await res.json();
-
-    if (data.error) {
-      return { ok: false, error: data.error.message };
+    let filesToProcess = [];
+    const fields = encodeURIComponent("files(id,name,mimeType,size,webContentLink,imageMediaMetadata,videoMediaMetadata)");
+    
+    if (driveInfo.type === "folder" || driveInfo.type === "unknown") {
+      // Try as folder first
+      const q = encodeURIComponent(`'${driveInfo.id}' in parents and trashed = false`);
+      const res = await fetch(`${DRIVE_API}/files?q=${q}&fields=${fields}&key=${apiKey}`);
+      const data = await res.json();
+      
+      if (data.error) {
+        if (driveInfo.type === "unknown") {
+          // Fallback to file
+          const fileRes = await fetch(`${DRIVE_API}/files/${driveInfo.id}?fields=id,name,mimeType,size,webContentLink,imageMediaMetadata,videoMediaMetadata&key=${apiKey}`);
+          const fileData = await fileRes.json();
+          if (fileData.error) return { ok: false, error: fileData.error.message };
+          filesToProcess = [fileData];
+        } else {
+          return { ok: false, error: data.error.message };
+        }
+      } else {
+        filesToProcess = data.files || [];
+      }
+    } else {
+      // It's a file
+      const fileRes = await fetch(`${DRIVE_API}/files/${driveInfo.id}?fields=id,name,mimeType,size,webContentLink,imageMediaMetadata,videoMediaMetadata&key=${apiKey}`);
+      const fileData = await fileRes.json();
+      if (fileData.error) return { ok: false, error: fileData.error.message };
+      filesToProcess = [fileData];
     }
 
-    const files = data.files || [];
     const validFiles = [];
     const skippedFiles = [];
 
-    for (const file of files) {
+    for (const file of filesToProcess) {
       const isImage = file.mimeType === "image/jpeg" || file.mimeType === "image/png";
       const isVideo = file.mimeType === "video/mp4" || file.mimeType === "video/quicktime";
       
       if (isImage || isVideo) {
+        let actualFormat = "unknown";
+        if (file.imageMediaMetadata) {
+          const w = file.imageMediaMetadata.width;
+          const h = file.imageMediaMetadata.height;
+          if (w && h) {
+            const ratio = w / h;
+            if (ratio > 0.9 && ratio < 1.1) actualFormat = "1:1";
+            else if (ratio > 0.75 && ratio < 0.85) actualFormat = "4:5";
+            else if (ratio > 0.5 && ratio < 0.6) actualFormat = "9:16";
+            else if (ratio > 1.7 && ratio < 1.8) actualFormat = "16:9";
+          }
+        } else if (file.videoMediaMetadata) {
+          const w = file.videoMediaMetadata.width;
+          const h = file.videoMediaMetadata.height;
+          if (w && h) {
+            const ratio = w / h;
+            if (ratio > 0.9 && ratio < 1.1) actualFormat = "1:1";
+            else if (ratio > 0.75 && ratio < 0.85) actualFormat = "4:5";
+            else if (ratio > 0.5 && ratio < 0.6) actualFormat = "9:16";
+            else if (ratio > 1.7 && ratio < 1.8) actualFormat = "16:9";
+          }
+        }
+
+        const nameFormat = detectFormatFromName(file.name);
+        const format = actualFormat !== "unknown" ? actualFormat : nameFormat;
+        
+        const match = scoreMatch(file.name, adName);
+
         validFiles.push({
           id: file.id,
           name: file.name,
           mime: file.mimeType,
           size: file.size,
+          format: format,
+          nameFormat: nameFormat,
+          actualFormat: actualFormat,
+          matchScore: match.score,
+          matchReason: match.reason,
           download_url: `${DRIVE_API}/files/${file.id}?alt=media&key=${apiKey}`
         });
       } else {
@@ -52,9 +157,13 @@ export async function resolveDriveFolder(folderUrl, apiKey) {
       }
     }
 
+    // Sort by match score descending
+    validFiles.sort((a, b) => b.matchScore - a.matchScore);
+
     return {
       ok: true,
-      folder_id: folderId,
+      drive_id: driveInfo.id,
+      type: driveInfo.type,
       files: validFiles,
       skipped: skippedFiles
     };

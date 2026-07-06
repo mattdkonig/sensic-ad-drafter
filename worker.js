@@ -8,7 +8,7 @@ import { activeClients, listAdsets, accountsForSlug, nameForSlug, bibleRows, mar
 import { assemblePlan, normalizeCta } from "./assembly.mjs";
 import { UI_HTML } from "./ui.mjs";
 import { issueSession, verifySession, readCookie, SESSION_COOKIE, setCookieHeader, clearCookieHeader } from "./auth.mjs";
-import { resolveDriveFolder } from "./drive.mjs";
+import { resolveDriveLink, extractMultipleDriveUrls } from "./drive.mjs";
 
 const BUILD_LABEL = "v0.9.1-loop";
 
@@ -139,19 +139,43 @@ async function handlePreview(env, request) {
   for (const r of selected) {
     const plan = assemblePlan(r, { pageId });
     if (env.WORKFLOW_MODE !== "manual" && r.creatives_folder && env.GOOGLE_DRIVE_API_KEY) {
-      const driveData = await resolveDriveFolder(r.creatives_folder, env.GOOGLE_DRIVE_API_KEY);
-      if (driveData.ok) {
-        plan.drive_files = driveData.files;
-        plan.drive_skipped = driveData.skipped;
-        if (driveData.files.length === 0) {
-          plan.issues.push({ level: "FAIL", msg: "Drive folder contains no Meta-acceptable finals (JPG/PNG/MP4)" });
+      const urls = extractMultipleDriveUrls(r.creatives_folder);
+      
+      let allFiles = [];
+      let allSkipped = [];
+      let allErrors = [];
+      
+      for (const url of urls) {
+        const driveData = await resolveDriveLink(url, env.GOOGLE_DRIVE_API_KEY, plan.ad_name);
+        if (driveData.ok) {
+          allFiles.push(...driveData.files);
+          allSkipped.push(...driveData.skipped);
+        } else {
+          allErrors.push(driveData.error);
+        }
+      }
+      
+      // Deduplicate files by ID
+      const seenIds = new Set();
+      plan.drive_files = allFiles.filter(f => {
+        if (seenIds.has(f.id)) return false;
+        seenIds.add(f.id);
+        return true;
+      });
+      plan.drive_skipped = allSkipped;
+      
+      if (allErrors.length > 0) {
+        plan.issues.push({ level: "WARN", msg: `Drive resolution had errors: ${allErrors.join(", ")}` });
+      }
+      
+      if (urls.length > 0) {
+        if (plan.drive_files.length === 0) {
+          plan.issues.push({ level: "FAIL", msg: "Drive link(s) contain no Meta-acceptable finals (JPG/PNG/MP4)" });
           plan.ready = false;
         } else {
           plan.issues = plan.issues.filter(i => !i.msg.includes("no Drive creatives folder linked"));
-          plan.issues.push({ level: "INFO", msg: `Resolved ${driveData.files.length} creative(s) from Drive` });
+          plan.issues.push({ level: "INFO", msg: `Resolved ${plan.drive_files.length} creative(s) from Drive` });
         }
-      } else {
-        plan.issues.push({ level: "WARN", msg: `Drive resolution failed: ${driveData.error}` });
       }
     }
     plans.push(plan);
@@ -300,13 +324,16 @@ async function handleCreateDrafts(env, request) {
     const rowId = item.row_id;
     // Idempotency within a request: same row + same creative = skip (allows
     // multiple distinct creatives per bible row -> multiple ads).
-    const dedupeKey = rowId + "|" + (item.image_hash || item.image_url || "");
+    const dedupeKey = rowId + "|" + (item.image_hash || item.image_url || item.drive_file_url || "");
     if (seen.has(dedupeKey)) { results.push({ row_id: rowId, ok: false, error: "duplicate creative in request" }); continue; }
     seen.add(dedupeKey);
     const row = rows.find((r) => r.id === rowId);
     if (!row) { results.push({ row_id: rowId, ok: false, error: "row not found in bible" }); continue; }
     if (row.uploaded) { results.push({ row_id: rowId, ok: false, error: "duplicate prevention: row is already marked as uploaded" }); continue; }
     const plan = assemblePlan(row, { pageId });
+    if (item.drive_file_format && item.drive_file_format !== "unknown") {
+      plan.ad_name = `${plan.ad_name} - ${item.drive_file_format}`;
+    }
     // Per-row CTA override from the UI dropdown (lets staff fix a blank/invalid bible CTA).
     if (item.cta) { plan.cta = normalizeCta(item.cta); plan.issues = (plan.issues || []).filter((i) => !/^CTA /.test(i.msg)); plan.ready = (plan.issues || []).filter((i) => i.level === "FAIL").length === 0; }
     if (!plan.ready) { results.push({ row_id: rowId, ok: false, error: "plan not ready", issues: plan.issues }); continue; }
