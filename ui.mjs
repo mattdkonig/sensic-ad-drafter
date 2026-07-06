@@ -65,7 +65,7 @@ button:disabled{opacity:.45;cursor:not-allowed}.linkbtn{background:none;border:n
 <div id="banner"></div>
 <div class="grid">
   <div><label>1 · Client</label><select id="client"><option>Loading…</option></select></div>
-  <div><label>2 · Ad set <span class="muted">— default for rows that don't auto-match</span> <button class="linkbtn" id="new-adset" style="float:right">+ New ad set / campaign</button></label><select id="adset"><option>Select a client first</option></select></div>
+  <div><label>2 · Ad set <span class="muted">— default for rows that don't auto-match</span> <button class="linkbtn" id="new-adset" style="float:right">+ New ad set / campaign</button></label><input id="adset-search" class="hide" type="search" placeholder="Filter campaigns or ad sets…" autocomplete="off" style="margin-bottom:8px; height: 38px;"><select id="adset"><option>Select a client first</option></select></div>
 </div>
 <div class="grid"><div><label>Status of new ads</label><div class="pill">⏸&nbsp; PAUSED (draft) — never goes live automatically</div></div><div></div></div>
 <div class="section-h"><h2>3 · Bible rows — Ad Tracker, not yet uploaded</h2><span class="meta" id="bible-count"></span></div>
@@ -94,8 +94,9 @@ button:disabled{opacity:.45;cursor:not-allowed}.linkbtn{background:none;border:n
    <select id="m-budget-type"><option value="daily">Daily</option><option value="lifetime">Lifetime</option></select>
    <input id="m-budget-amount" type="number" min="1" step="1" inputmode="decimal" placeholder="Amount $" autocomplete="off">
   </div>
-  <div id="m-end-row" class="hide"><label for="m-end-time" style="margin-top:12px">Lifetime budget end date</label><input id="m-end-time" type="datetime-local"></div>
+   <div id="m-end-row" class="hide"><label for="m-end-time" style="margin-top:12px">Lifetime budget end date</label><input id="m-end-time" type="datetime-local"></div>
   <label style="margin-top:14px;display:flex;align-items:center;gap:9px;color:var(--ink);font-size:14px"><input type="checkbox" id="m-copy-ads" checked style="width:18px;height:18px;min-width:18px;accent-color:var(--accent)"> Also copy the existing ads (PAUSED) — uncheck to start with an empty ad set</label>
+  <div class="banner info" style="margin-top:16px;margin-bottom:0"><b>Note:</b> The new ad set will automatically inherit all placements, targeting, and exclusions from the source ad set.</div>
   <div class="muted" style="font-size:12px;margin-top:12px;line-height:1.5">Most ad sets copy in one click. If Meta refuses a particular one, just pick another — your original ad sets are never touched, and nothing ever goes live.</div>
   <div class="m-err" id="m-err"></div>
   <div class="modal-actions"><button id="m-cancel">Cancel</button><button class="primary" id="m-create">Create PAUSED</button></div>
@@ -159,19 +160,23 @@ async function initApp(){
 
 function renderAdsets(){
  // group by campaign
- const byCamp={};ADSETS.forEach(s=>{const c=s.campaign||'(no campaign)';(byCamp[c]=byCamp[c]||[]).push(s)});
+ const q=($('#adset-search').value||'').trim().toLowerCase();
+ const byCamp={};ADSETS.forEach(s=>{const c=s.campaign||'(no campaign)';if(q&&!((s.name||'')+' '+c).toLowerCase().includes(q))return;(byCamp[c]=byCamp[c]||[]).push(s)});
  let html='<option value="">Select an ad set…</option>';
  for(const camp of Object.keys(byCamp).sort()){html+='<optgroup label="'+esc(camp)+'">'+byCamp[camp].map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+' ('+esc(s.status)+')</option>').join('')+'</optgroup>';}
- $('#adset').innerHTML=html;
+ const sel=$('#adset'),old=sel.value;sel.innerHTML=html;
+ if(old&&sel.querySelector('option[value="'+esc(old)+'"]'))sel.value=old;
 }
+$('#adset-search').oninput=()=>renderAdsets();
 $('#client').onchange=async e=>{
  const slug=e.target.value;$('#adset').innerHTML='<option>Loading…</option>';$('#bible').innerHTML='<div class="empty">Loading…</div>';
+ $('#adset-search').classList.add('hide');$('#adset-search').value='';
  $('#preview-out').innerHTML='';$('#create').classList.add('hide');$('#preview').disabled=true;banner('');
  if(!slug){$('#adset').innerHTML='<option>Select a client first</option>';$('#bible-bar').classList.add('hide');$('#bible').innerHTML='<div class="empty">Select a client.</div>';$('#bible-count').textContent='';return}
  SELECTED.clear();$('#bible-search').value='';
  try{localStorage.setItem('drafter:lastClient',slug)}catch(_){}
  try{const[a,b]=await Promise.all([api('/api/adsets?client='+encodeURIComponent(slug)),api('/api/bible?client='+encodeURIComponent(slug))]);
-  ADSETS=a.adsets||[];renderAdsets();
+  ADSETS=a.adsets||[];$('#adset-search').classList.remove('hide');renderAdsets();
   BIBLE=b.rows||[];BIBLE_SOURCE=b.source||'';renderBible();refresh();
  }catch(_){$('#bible-bar').classList.add('hide');$('#bible').innerHTML='<div class="empty">Could not load this client\\'s ad sets / bible. <a id="bible-retry">Retry</a></div>';const rt=$('#bible-retry');if(rt)rt.onclick=()=>$('#client').dispatchEvent(new Event('change'));}
 };
@@ -189,7 +194,7 @@ function renderBible(){
  const q=($('#bible-search').value||'').trim().toLowerCase();
  const rows=q?BIBLE.filter(r=>String(r.concept||'').toLowerCase().includes(q)):BIBLE;
  if(!rows.length){$('#bible').innerHTML='<div class="empty">No rows match “'+esc(q)+'”.</div>';updateCount();return}
- $('#bible').innerHTML=rows.map(r=>{const m=rowMeta(r);return '<label class="brow"><input type="checkbox" class="rowcb" value="'+esc(r.id)+'"'+(SELECTED.has(r.id)?' checked':'')+'><div><div class="t">'+esc(r.concept||'(untitled)')+'</div>'+(m?'<div class="meta">'+m+'</div>':'')+'</div>'+(r.cta?'<div class="cta">'+esc(r.cta)+'</div>':'')+'</label>'}).join('');
+ $('#bible').innerHTML=rows.map(r=>{const m=rowMeta(r);return '<label class="brow"><input type="checkbox" class="rowcb" value="'+esc(r.id)+'"'+(SELECTED.has(r.id)?' checked':'')+'><div><div class="t">'+(r.sheet_row?'<span class="muted" style="margin-right:8px;font-weight:normal">Line '+r.sheet_row+'</span>':'')+esc(r.concept||'(untitled)')+'</div>'+(m?'<div class="meta">'+m+'</div>':'')+'</div>'+(r.cta?'<div class="cta">'+esc(r.cta)+'</div>':'')+'</label>'}).join('');
  updateCount();
 }
 $('#bible-search').oninput=()=>renderBible();

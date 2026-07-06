@@ -292,7 +292,11 @@ async function handleCreateDrafts(env, request) {
   const { rows } = await bibleRows(env, slug);
   const results = [];
   const seen = new Set();
+  const delay = ms => new Promise(res => setTimeout(res, ms));
+
   for (const item of items) {
+    if (results.length > 0) await delay(500); // Rate limit: 500ms between Meta API calls
+
     const rowId = item.row_id;
     // Idempotency within a request: same row + same creative = skip (allows
     // multiple distinct creatives per bible row -> multiple ads).
@@ -301,6 +305,7 @@ async function handleCreateDrafts(env, request) {
     seen.add(dedupeKey);
     const row = rows.find((r) => r.id === rowId);
     if (!row) { results.push({ row_id: rowId, ok: false, error: "row not found in bible" }); continue; }
+    if (row.uploaded) { results.push({ row_id: rowId, ok: false, error: "duplicate prevention: row is already marked as uploaded" }); continue; }
     const plan = assemblePlan(row, { pageId });
     // Per-row CTA override from the UI dropdown (lets staff fix a blank/invalid bible CTA).
     if (item.cta) { plan.cta = normalizeCta(item.cta); plan.issues = (plan.issues || []).filter((i) => !/^CTA /.test(i.msg)); plan.ready = (plan.issues || []).filter((i) => i.level === "FAIL").length === 0; }
@@ -333,7 +338,7 @@ async function handleCreateDrafts(env, request) {
       if (finalVideoId) {
         const ready = await waitVideoReady({ ...fbArgs(env), videoId: finalVideoId });
         if (ready === "error") { results.push({ row_id: rowId, ok: false, error: "Meta could not process this video" }); continue; }
-        if (ready !== "ready") { results.push({ row_id: rowId, ok: false, error: "video still processing on Meta — click Create again in ~30s" }); continue; }
+        if (ready !== "ready") { results.push({ row_id: rowId, ok: false, error: "Video uploaded but still processing on Meta. Please click 'Create' again in 30 seconds to finish building the ad." }); continue; }
         const thumb = await getVideoThumbnail({ ...fbArgs(env), videoId: finalVideoId });
         created = await createCleanVideoDraft({ ...fbArgs(env), accountId, adsetId, plan, videoId: finalVideoId, thumbnailUrl: thumb, instagramActorId: item.instagram_actor_id });
       } else {
