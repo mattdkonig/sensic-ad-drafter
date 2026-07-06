@@ -105,7 +105,6 @@ export async function listAdsets({ token, secret, accountId }) {
         name: a.name,
         status: a.effective_status,
         spend_l7d: spendByAdset[a.id] || 0,
-        status: a.effective_status,
         campaign: camp.name || null,
         campaign_id: camp.id || null,
         objective: camp.objective || null,
