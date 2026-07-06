@@ -148,8 +148,22 @@ function adsetMatch(row){
  return bs>=45?{adset:best,score:Math.min(bs,100)}:null;
 }
 function adsetOptionsHtml(sel){
- const byCamp={};ADSETS.forEach(s=>{const c=s.campaign||'(no campaign)';(byCamp[c]=byCamp[c]||[]).push(s)});
- return '<option value="">— use the ad set selected above —</option>'+Object.keys(byCamp).sort().map(c=>'<optgroup label="'+esc(c)+'">'+byCamp[c].map(s=>'<option value="'+esc(s.id)+'"'+(s.id===sel?' selected':'')+'>'+esc(s.name)+' ('+esc(s.status)+')</option>').join('')+'</optgroup>').join('');
+ const byCamp={};
+ const campSpend={};
+ ADSETS.forEach(s=>{
+  const c=s.campaign||'(no campaign)';
+  (byCamp[c]=byCamp[c]||[]).push(s);
+  campSpend[c] = (campSpend[c]||0) + (s.spend_l7d||0);
+ });
+ for(const c in byCamp) byCamp[c].sort((a,b)=>(b.spend_l7d||0)-(a.spend_l7d||0));
+ const sortedCamps = Object.keys(byCamp).sort((a,b)=>campSpend[b]-campSpend[a]);
+ return '<option value="">— use the ad set selected above —</option>'+sortedCamps.map(c=>{
+  const spendStr = campSpend[c] > 0 ? ' ($'+Math.round(campSpend[c])+' L7D)' : '';
+  return '<optgroup label="'+esc(c)+spendStr+'">'+byCamp[c].map(s=>{
+   const asSpend = s.spend_l7d > 0 ? ' - $'+Math.round(s.spend_l7d) : '';
+   return '<option value="'+esc(s.id)+'"'+(s.id===sel?' selected':'')+'>'+esc(s.name)+' ('+esc(s.status)+asSpend+')</option>';
+  }).join('')+'</optgroup>';
+ }).join('');
 }
 function adsetSummary(a){if(!a)return'';const bits=[];if(a.objective)bits.push(a.objective.replace(/^OUTCOME_/,''));if(a.optimization_goal)bits.push(a.optimization_goal);if(a.budget_level==='cbo'&&a.campaign_budget)bits.push('CBO $'+a.campaign_budget);else if(a.daily_budget)bits.push('$'+a.daily_budget+'/day');else if(a.lifetime_budget)bits.push('$'+a.lifetime_budget+' lifetime');return bits.join(' · ');}
 async function initApp(){
@@ -159,11 +173,25 @@ async function initApp(){
  }catch(_){}}
 
 function renderAdsets(){
- // group by campaign
  const q=($('#adset-search').value||'').trim().toLowerCase();
- const byCamp={};ADSETS.forEach(s=>{const c=s.campaign||'(no campaign)';if(q&&!((s.name||'')+' '+c).toLowerCase().includes(q))return;(byCamp[c]=byCamp[c]||[]).push(s)});
+ const byCamp={};
+ const campSpend={};
+ ADSETS.forEach(s=>{
+  const c=s.campaign||'(no campaign)';
+  if(q&&!((s.name||'')+' '+c).toLowerCase().includes(q))return;
+  (byCamp[c]=byCamp[c]||[]).push(s);
+  campSpend[c] = (campSpend[c]||0) + (s.spend_l7d||0);
+ });
+ for(const c in byCamp) byCamp[c].sort((a,b)=>(b.spend_l7d||0)-(a.spend_l7d||0));
+ const sortedCamps = Object.keys(byCamp).sort((a,b)=>campSpend[b]-campSpend[a]);
  let html='<option value="">Select an ad set…</option>';
- for(const camp of Object.keys(byCamp).sort()){html+='<optgroup label="'+esc(camp)+'">'+byCamp[camp].map(s=>'<option value="'+esc(s.id)+'">'+esc(s.name)+' ('+esc(s.status)+')</option>').join('')+'</optgroup>';}
+ for(const camp of sortedCamps){
+  const spendStr = campSpend[camp] > 0 ? ' ($'+Math.round(campSpend[camp])+' L7D)' : '';
+  html+='<optgroup label="'+esc(camp)+spendStr+'">'+byCamp[camp].map(s=>{
+   const asSpend = s.spend_l7d > 0 ? ' - $'+Math.round(s.spend_l7d) : '';
+   return '<option value="'+esc(s.id)+'">'+esc(s.name)+' ('+esc(s.status)+asSpend+')</option>';
+  }).join('')+'</optgroup>';
+ }
  const sel=$('#adset'),old=sel.value;sel.innerHTML=html;
  if(old&&sel.querySelector('option[value="'+esc(old)+'"]'))sel.value=old;
 }
@@ -286,7 +314,7 @@ $('#preview').onclick=async()=>{
        p.drive_files.map(f=>{
          const isChecked = f.matchScore > 0 ? 'checked' : '';
          const badgeClass = f.matchScore >= 0.8 ? 'b-ok' : (f.matchScore > 0 ? 'b-warn' : 'b-bad');
-         const reason = f.matchReason ? ` - ${f.matchReason}` : '';
+         const reason = f.matchReason ? ' - ' + f.matchReason : '';
          return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" class="drive-file-cb" data-row="'+esc(p.row_id)+'" data-url="'+esc(f.download_url)+'" data-mime="'+esc(f.mime)+'" data-name="'+esc(f.name)+'" data-format="'+esc(f.format)+'" '+isChecked+'> <span class="badge '+badgeClass+'">'+f.format+'</span> '+esc(f.name)+' <span class="muted">('+Math.round(f.size/1024)+' KB'+reason+')</span></label>';
        }).join('')+
        (p.drive_skipped&&p.drive_skipped.length?'<div class="muted" style="font-size:12px;margin-top:8px">Skipped '+p.drive_skipped.length+' unsupported file(s)</div>':'')+'</div>';

@@ -76,6 +76,26 @@ export async function listAdsets({ token, secret, accountId }) {
     after = r?.paging?.cursors?.after || null;
     if (!after || !data.length) break;
   }
+
+  const spendByAdset = {};
+  try {
+    let afterSpend = null;
+    for (let page = 0; page < 10; page++) {
+      const q = `act_${accountId}/insights?level=adset&date_preset=last_7d&fields=adset_id,spend&limit=200${afterSpend ? `&after=${encodeURIComponent(afterSpend)}` : ""}`;
+      const r = await graphGet(token, secret, q);
+      const data = r.data || [];
+      for (const row of data) {
+        if (row.adset_id && row.spend) {
+          spendByAdset[row.adset_id] = Number(row.spend);
+        }
+      }
+      afterSpend = r?.paging?.cursors?.after || null;
+      if (!afterSpend || !data.length) break;
+    }
+  } catch (e) {
+    // Best effort
+  }
+
   return raw
     .map((a) => {
       const camp = a?.campaign || {};
@@ -83,6 +103,8 @@ export async function listAdsets({ token, secret, accountId }) {
       return {
         id: a.id,
         name: a.name,
+        status: a.effective_status,
+        spend_l7d: spendByAdset[a.id] || 0,
         status: a.effective_status,
         campaign: camp.name || null,
         campaign_id: camp.id || null,
