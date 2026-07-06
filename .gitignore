@@ -1,3 +1,4 @@
 .env.local
 .wrangler/
 test-drive.mjs
+sync/service-account.json
