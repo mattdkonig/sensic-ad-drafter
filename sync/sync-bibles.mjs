@@ -82,10 +82,10 @@ async function sync() {
           primary_text: getCol(["primary text", "body copy"]),
           headline: getCol(["headline"]),
           cta: getCol(["cta", "call to action"]),
-          landing_url: getCol(["landing page url", "landing page"]),
-          campaign: getCol(["campaign name"]),
-          adset_hint: getCol(["ad set name"]),
-          creatives_folder: getCol(["link to creatives", "gdrive", "drive"])
+          landing_url: getCol(["landing page url", "landing page", "destination link", "destination url"]),
+          campaign: getCol(["campaign name", "campaign"]),
+          adset_hint: getCol(["ad set name", "ad set", "adset"]),
+          creatives_folder: getCol(["link to creative", "link to creatives", "gdrive", "drive", "creative link"])
         });
       }
       
