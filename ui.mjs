@@ -312,8 +312,8 @@ $('#preview').onclick=async()=>{
      if(mode!=='manual'&&p.drive_files&&p.drive_files.length){
        driveHtml='<div style="margin-top:12px;padding:8px;background:var(--panel);border-radius:6px;border:1px solid var(--line)"><div class="pc-l" style="margin:0 0 8px 0;font-weight:600">Drive Auto-Resolution</div>'+
        p.drive_files.map(f=>{
-         const isChecked = f.matchScore > 0 ? 'checked' : '';
-         const badgeClass = f.matchScore >= 0.8 ? 'b-ok' : (f.matchScore > 0 ? 'b-warn' : 'b-bad');
+         const isChecked = f.matchScore > 0.5 ? 'checked' : '';
+         const badgeClass = f.matchScore >= 0.8 ? 'b-ok' : (f.matchScore > 0.5 ? 'b-warn' : 'b-bad');
          const reason = f.matchReason ? ' - ' + f.matchReason : '';
          return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" class="drive-file-cb" data-row="'+esc(p.row_id)+'" data-url="'+esc(f.download_url)+'" data-mime="'+esc(f.mime)+'" data-name="'+esc(f.name)+'" data-format="'+esc(f.format)+'" '+isChecked+'> <span class="badge '+badgeClass+'">'+f.format+'</span> '+esc(f.name)+' <span class="muted">('+Math.round(f.size/1024)+' KB'+reason+')</span></label>';
        }).join('')+

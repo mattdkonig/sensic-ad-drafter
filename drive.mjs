@@ -39,7 +39,10 @@ export function scoreMatch(fileName, adName) {
   const normFile = normalizeName(fileName);
   const normAd = normalizeName(adName);
 
-  if (normFile.includes(normAd)) {
+  if (normFile === normAd || normFile.startsWith(normAd)) {
+    score += 1.0;
+    reason.push("Exact ad name match");
+  } else if (normFile.includes(normAd)) {
     score += 0.8;
     reason.push("Ad name match");
   } else {
