@@ -34,7 +34,7 @@ button:disabled{opacity:.45;cursor:not-allowed}.linkbtn{background:none;border:n
 .pcard .thumb{height:88px;background:var(--panel2);display:flex;align-items:center;justify-content:center;color:var(--mut)}
 .pcard .pc-b{padding:12px 14px}.pcard .pc-t{font-weight:500;margin-bottom:3px}.pcard .pc-m{font-size:12px;color:var(--mut);line-height:1.5;margin-bottom:8px;min-height:34px}
 .pcard input[type=file]{font-size:12px;width:100%;margin-top:8px}
-.actions{display:flex;gap:12px;align-items:center;margin-top:22px}
+.actions{display:flex;gap:12px;align-items:center;margin-top:22px;position:sticky;bottom:0;background:var(--bg);padding:16px 0;border-top:1px solid var(--line);z-index:100}
 .banner{padding:12px 16px;border-radius:10px;margin-bottom:18px;font-size:14px}.banner.err{background:var(--badbg);color:var(--bad)}.banner.ok{background:var(--okbg);color:var(--ok)}.banner.info{background:#11233f;color:#93c5fd}
 .foot{margin-left:auto;color:var(--mut);font-size:12px;display:flex;gap:6px;align-items:center}
 .hide{display:none!important}
@@ -71,9 +71,9 @@ button:disabled{opacity:.45;cursor:not-allowed}.linkbtn{background:none;border:n
 <div class="section-h"><h2>3 · Bible rows — Ad Tracker, not yet uploaded</h2><span class="meta" id="bible-count"></span></div>
 <div class="bible-bar hide" id="bible-bar"><input id="bible-search" type="search" placeholder="Filter rows by name…" autocomplete="off"><button class="linkbtn" id="select-all">Select all</button><button class="linkbtn" id="clear-all">Clear</button></div>
 <div class="card" id="bible"><div class="empty">Select a client.</div></div>
+<div id="preview-out" style="margin-top:24px;margin-bottom:24px"></div>
 <div class="actions"><button class="primary" id="preview" disabled>Preview</button><button id="create" class="hide">Create PAUSED drafts</button><span class="muted" id="status"></span>
 <span class="foot">🛡 enhancements off · audit logged</span></div>
-<div id="preview-out" style="margin-top:24px"></div>
 </main>
 <div id="modal" class="modal-bg hide">
  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
@@ -306,7 +306,9 @@ $('#preview').onclick=async()=>{
     const msg=String(p.message||'');const mhtml=msg.length>90?('<span class="m-short">'+esc(msg.slice(0,90))+'… <a class="more-toggle">more</a></span><span class="m-full hide">'+esc(msg)+' <a class="more-toggle">less</a></span>'):esc(msg);
     let ctrl='';
     if(p.ready){
-     const mb=m?'<span class="badge b-ok">→ '+esc(m.adset.name)+' · '+m.score+'%</span>':'<span class="badge b-warn">no ad set match — using the one selected above</span>';
+     const selectedAdsetId = $('#adset').value;
+     const selectedAdset = selectedAdsetId ? adsetById(selectedAdsetId) : null;
+     const mb=m?'<span class="badge b-ok">→ '+esc(m.adset.name)+' · '+m.score+'%</span>':(selectedAdset?'<span class="badge b-warn">→ Using default: '+esc(selectedAdset.name)+'</span>':'<span class="badge b-bad">no target ad set</span>');
      let driveHtml='';
      const mode='__WORKFLOW_MODE__';
      if(mode!=='manual'&&p.drive_files&&p.drive_files.length){
@@ -328,7 +330,7 @@ $('#preview').onclick=async()=>{
     return '<div class="pcard"><div class="thumb">🖼</div><div class="pc-b"><div class="pc-t">'+esc(p.ad_name)+'</div><div class="pc-m">'+mhtml+'</div>'+b+' '+iss+ctrl+'</div></div>'}).join('')+'</div>';
   const ctaAll=$('#cta-all');if(ctaAll)ctaAll.onchange=()=>{document.querySelectorAll('.creative-cta').forEach(s=>{s.value=ctaAll.value})};
   window.__plans=plans;
-  if(plans.some(p=>p.ready))$('#create').classList.remove('hide');
+  if(plans.some(p=>p.ready)){$('#create').classList.remove('hide');$('#create').textContent='Create '+readyN+' PAUSED draft'+(readyN===1?'':'s');}
   $('#preview-out').scrollIntoView({behavior:'smooth',block:'start'});
  }catch(_){$('#status').textContent='';banner('Could not build the preview — try again.','err');}
 };
