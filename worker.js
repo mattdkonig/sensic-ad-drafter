@@ -3,7 +3,7 @@
 // Subdir Worker (sibling to creative-brief / sensic-dispatcher). Reuses the proven
 // engine in ./lib/fb-draft-ads.mjs. M0 = scaffold + health + engine routes.
 
-import { createDraftAd, createCleanDraft, uploadAdImage, uploadAdVideo, waitVideoReady, getVideoThumbnail, createCleanVideoDraft, copyObject, configureNewObject, qaAd, XERO, accountCanonicalPage } from "./lib/fb-draft-ads.mjs";
+import { createDraftAd, createCleanDraft, uploadAdImage, uploadAdVideo, waitVideoReady, getVideoThumbnail, createCleanVideoDraft, createAssetCustomizationDraft, copyObject, configureNewObject, qaAd, XERO, accountCanonicalPage } from "./lib/fb-draft-ads.mjs";
 import { activeClients, listAdsets, accountsForSlug, nameForSlug, bibleRows, markUploaded } from "./data.mjs";
 import { assemblePlan, normalizeCta } from "./assembly.mjs";
 import { UI_HTML } from "./ui.mjs";
@@ -337,40 +337,97 @@ async function handleCreateDrafts(env, request) {
     // Per-row CTA override from the UI dropdown (lets staff fix a blank/invalid bible CTA).
     if (item.cta) { plan.cta = normalizeCta(item.cta); plan.issues = (plan.issues || []).filter((i) => !/^CTA /.test(i.msg)); plan.ready = (plan.issues || []).filter((i) => i.level === "FAIL").length === 0; }
     if (!plan.ready) { results.push({ row_id: rowId, ok: false, error: "plan not ready", issues: plan.issues }); continue; }
-    if (!item.image_hash && !item.image_url && !item.video_id && !item.drive_file_url) { results.push({ row_id: rowId, ok: false, error: "no creative (attach an image or a video, or provide a drive_file_url)" }); continue; }
+    
+    const assets = item.assets || [];
+    if (assets.length === 0 && !item.image_hash && !item.image_url && !item.video_id && !item.drive_file_url) { 
+      results.push({ row_id: rowId, ok: false, error: "no creative (attach an image or a video, or provide a drive_file_url)" }); 
+      continue; 
+    }
+
+    // Backward compatibility for old UI payloads
+    if (assets.length === 0) {
+      if (item.drive_file_url) assets.push({ type: 'drive', url: item.drive_file_url, mime: item.drive_file_mime, name: item.drive_file_name, format: item.drive_file_format });
+      else if (item.image_hash) assets.push({ type: 'image', hash: item.image_hash, format: 'unknown' });
+      else if (item.video_id) assets.push({ type: 'video', id: item.video_id, format: 'unknown' });
+      else if (item.image_url) assets.push({ type: 'image_url', url: item.image_url, format: 'unknown' });
+    }
+
     const adsetId = item.adset_id || defaultAdset;
     if (!adsetId) { results.push({ row_id: rowId, ok: false, error: "no ad set for this row (no match and no default selected)" }); continue; }
+    
     try {
       let created;
-      let finalImageHash = item.image_hash;
-      let finalVideoId = item.video_id;
+      const finalImages = [];
+      const finalVideos = [];
+      let hasError = false;
+      let errorMsg = "";
 
-      if (item.drive_file_url) {
-        try {
-          const res = await fetch(item.drive_file_url);
-          if (!res.ok) throw new Error(`Failed to download from Drive: ${res.status}`);
-          const bytes = await res.arrayBuffer();
-          const isVideo = item.drive_file_mime === "video/mp4" || item.drive_file_mime === "video/quicktime";
-          if (isVideo) {
-            finalVideoId = await uploadAdVideo({ ...fbArgs(env), accountId, bytes, filename: item.drive_file_name || "video.mp4" });
-          } else {
-            finalImageHash = await uploadAdImage({ ...fbArgs(env), accountId, bytes, filename: item.drive_file_name || "image.jpg" });
+      for (const asset of assets) {
+        if (asset.type === 'drive') {
+          try {
+            const res = await fetch(asset.url);
+            if (!res.ok) throw new Error(`Failed to download from Drive: ${res.status}`);
+            const bytes = await res.arrayBuffer();
+            const isVideo = asset.mime === "video/mp4" || asset.mime === "video/quicktime";
+            if (isVideo) {
+              const vid = await uploadAdVideo({ ...fbArgs(env), accountId, bytes, filename: asset.name || "video.mp4" });
+              finalVideos.push({ id: vid, format: asset.format });
+            } else {
+              const hash = await uploadAdImage({ ...fbArgs(env), accountId, bytes, filename: asset.name || "image.jpg" });
+              finalImages.push({ hash, format: asset.format });
+            }
+          } catch (err) {
+            hasError = true;
+            errorMsg = `Drive download/upload failed: ${err.message}`;
+            break;
           }
-        } catch (err) {
-          results.push({ row_id: rowId, ok: false, error: `Drive download/upload failed: ${err.message}` });
-          continue;
+        } else if (asset.type === 'image') {
+          finalImages.push({ hash: asset.hash, format: asset.format });
+        } else if (asset.type === 'video') {
+          finalVideos.push({ id: asset.id, format: asset.format });
+        } else if (asset.type === 'image_url') {
+          finalImages.push({ url: asset.url, format: asset.format });
         }
       }
 
-      if (finalVideoId) {
-        const ready = await waitVideoReady({ ...fbArgs(env), videoId: finalVideoId });
-        if (ready === "error") { results.push({ row_id: rowId, ok: false, error: "Meta could not process this video" }); continue; }
-        if (ready !== "ready") { results.push({ row_id: rowId, ok: false, error: "Video uploaded but still processing on Meta. Please click 'Create' again in 30 seconds to finish building the ad." }); continue; }
-        const thumb = await getVideoThumbnail({ ...fbArgs(env), videoId: finalVideoId });
-        created = await createCleanVideoDraft({ ...fbArgs(env), accountId, adsetId, plan, videoId: finalVideoId, thumbnailUrl: thumb, instagramActorId: item.instagram_actor_id });
-      } else {
-        created = await createCleanDraft({ ...fbArgs(env), accountId, adsetId, plan, imageHash: finalImageHash, imageUrl: item.image_url, instagramActorId: item.instagram_actor_id });
+      if (hasError) {
+        results.push({ row_id: rowId, ok: false, error: errorMsg });
+        continue;
       }
+
+      for (const v of finalVideos) {
+        const ready = await waitVideoReady({ ...fbArgs(env), videoId: v.id });
+        if (ready === "error") { hasError = true; errorMsg = "Meta could not process a video"; break; }
+        if (ready !== "ready") { hasError = true; errorMsg = "Video uploaded but still processing on Meta. Please click 'Create' again in 30 seconds."; break; }
+        v.thumb = await getVideoThumbnail({ ...fbArgs(env), videoId: v.id });
+      }
+
+      if (hasError) {
+        results.push({ row_id: rowId, ok: false, error: errorMsg });
+        continue;
+      }
+
+      if (finalImages.length + finalVideos.length > 1) {
+        // Use Placement Asset Customization (PAC) for multiple creatives
+        created = await createAssetCustomizationDraft({ 
+          ...fbArgs(env), accountId, adsetId, plan, 
+          images: finalImages, videos: finalVideos, 
+          instagramActorId: item.instagram_actor_id 
+        });
+      } else if (finalVideos.length === 1) {
+        created = await createCleanVideoDraft({ 
+          ...fbArgs(env), accountId, adsetId, plan, 
+          videoId: finalVideos[0].id, thumbnailUrl: finalVideos[0].thumb, 
+          instagramActorId: item.instagram_actor_id 
+        });
+      } else if (finalImages.length === 1) {
+        created = await createCleanDraft({ 
+          ...fbArgs(env), accountId, adsetId, plan, 
+          imageHash: finalImages[0].hash, imageUrl: finalImages[0].url, 
+          instagramActorId: item.instagram_actor_id 
+        });
+      }
+
       let qa = null;
       try { const q = await qaAd({ ...fbArgs(env), adId: created.ad_id, expectedPage: pageId || "", expectedAccount: accountId }); qa = { pass: q.pass, fails: q.fails, warns: q.warns }; } catch { qa = null; }
       await audit(env, { user: who, client: slug, account_id: accountId, adset_id: adsetId, row_id: rowId, ad_id: created.ad_id, qa });

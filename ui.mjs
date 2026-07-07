@@ -353,23 +353,26 @@ $('#create').onclick=async()=>{
  const tnames=tids.map(id=>{const a=adsetById(id);return a?a.name:id;});
  const active=tids.map(adsetById).filter(a=>a&&a.status==='ACTIVE');
  const totalCount=files.length+driveFiles.length;
- let msg='Create '+totalCount+' PAUSED draft ad(s) across '+tids.length+' ad set'+(tids.length===1?'':'s')+':\\n\\n• '+tnames.join('\\n• ')+'\\n\\nThe ads are created PAUSED — they will NOT go live; you review and publish in Ads Manager.';
+ const uniqueRows=new Set([...files.map(f=>f.row),...driveFiles.map(f=>f.row)]).size;
+ let msg='Create '+uniqueRows+' PAUSED draft ad(s) (using '+totalCount+' creative assets) across '+tids.length+' ad set'+(tids.length===1?'':'s')+':\\n\\n• '+tnames.join('\\n• ')+'\\n\\nThe ads are created PAUSED — they will NOT go live; you review and publish in Ads Manager.';
  if(active.length)msg+='\\n\\nNote: '+active.length+' target ad set'+(active.length===1?' is':'s are')+' ACTIVE, but the new ads stay PAUSED regardless.';
  if(!confirm(msg))return;
- $('#create').disabled=true;const items=[],upErr=[];let done=0;
+ $('#create').disabled=true;const itemsByRow={};const upErr=[];let done=0;
+ const getRow=(row)=>{if(!itemsByRow[row])itemsByRow[row]={row_id:row,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined,assets:[]};return itemsByRow[row];};
  for(const {row,file} of files){done++;$('#status').textContent='Uploading attached creative '+done+' of '+files.length+'…';
   try{const fd=new FormData();fd.set('file',file);
    const isVid=(file.type||'').indexOf('video/')===0||/\\.(mp4|mov|m4v)$/i.test(file.name);
    if(isVid)$('#status').textContent='Uploading video '+done+' of '+files.length+' (Meta will process it)…';
    const ep=(isVid?'/api/upload-video?client=':'/api/upload-image?client=')+encodeURIComponent(client);
    const r=await fetch(ep,{method:'POST',credentials:'include',body:fd});const j=await r.json().catch(()=>({}));
-   if(j.ok&&j.image_hash)items.push({row_id:row,image_hash:j.image_hash,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined});
-   else if(j.ok&&j.video_id)items.push({row_id:row,video_id:j.video_id,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined});
+   if(j.ok&&j.image_hash)getRow(row).assets.push({type:'image',hash:j.image_hash,format:'unknown'});
+   else if(j.ok&&j.video_id)getRow(row).assets.push({type:'video',id:j.video_id,format:'unknown'});
    else upErr.push(file.name+': '+(j.message||'upload rejected'));
   }catch(_){upErr.push(file.name+': network error')}}
  for(const {row,url,mime,name,format} of driveFiles){
-  items.push({row_id:row,drive_file_url:url,drive_file_mime:mime,drive_file_name:name,drive_file_format:format,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined});
+  getRow(row).assets.push({type:'drive',url,mime,name,format});
  }
+ const items=Object.values(itemsByRow);
  if(upErr.length)banner((items.length?'Some creatives failed to upload ('+upErr.length+' of '+files.length+'): ':'All uploads failed: ')+esc(upErr.join('; ')),'err');
  if(!items.length){$('#status').textContent='';$('#create').disabled=false;return}
  $('#status').textContent='Creating '+items.length+' PAUSED draft(s)…';

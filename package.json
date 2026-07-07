@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "google-auth-library": "^10.9.0",
-    "papaparse": "^5.5.4"
+    "papaparse": "^5.5.4",
+    "xlsx": "^0.18.5"
   }
 }
