@@ -312,11 +312,13 @@ async function handleCreateDrafts(env, request) {
 
   let pageId = null;
   let instagramActorId = null;
+  let instagramUserId = null;
   try { 
     const ids = await accountCanonicalIdentities(fbArgs(env).token, fbArgs(env).secret, accountId); 
     pageId = ids.pageId;
     instagramActorId = ids.instagramActorId;
-  } catch { pageId = null; instagramActorId = null; }
+    instagramUserId = ids.instagramUserId;
+  } catch { pageId = null; instagramActorId = null; instagramUserId = null; }
 
   const { rows } = await bibleRows(env, slug);
   const results = [];
@@ -417,19 +419,22 @@ async function handleCreateDrafts(env, request) {
         created = await createAssetCustomizationDraft({ 
           ...fbArgs(env), accountId, adsetId, plan, 
           images: finalImages, videos: finalVideos, 
-          instagramActorId: item.instagram_actor_id || instagramActorId 
+          instagramActorId: item.instagram_actor_id || instagramActorId,
+          instagramUserId: item.instagram_user_id || instagramUserId
         });
       } else if (finalVideos.length === 1) {
         created = await createCleanVideoDraft({ 
           ...fbArgs(env), accountId, adsetId, plan, 
           videoId: finalVideos[0].id, thumbnailUrl: finalVideos[0].thumb, 
-          instagramActorId: item.instagram_actor_id || instagramActorId 
+          instagramActorId: item.instagram_actor_id || instagramActorId,
+          instagramUserId: item.instagram_user_id || instagramUserId
         });
       } else if (finalImages.length === 1) {
         created = await createCleanDraft({ 
           ...fbArgs(env), accountId, adsetId, plan, 
           imageHash: finalImages[0].hash, imageUrl: finalImages[0].url, 
-          instagramActorId: item.instagram_actor_id || instagramActorId 
+          instagramActorId: item.instagram_actor_id || instagramActorId,
+          instagramUserId: item.instagram_user_id || instagramUserId
         });
       }
 
