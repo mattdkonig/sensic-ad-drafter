@@ -3,7 +3,7 @@
 // Subdir Worker (sibling to creative-brief / sensic-dispatcher). Reuses the proven
 // engine in ./lib/fb-draft-ads.mjs. M0 = scaffold + health + engine routes.
 
-import { createDraftAd, createCleanDraft, uploadAdImage, uploadAdVideo, waitVideoReady, getVideoThumbnail, createCleanVideoDraft, createAssetCustomizationDraft, copyObject, configureNewObject, qaAd, XERO, accountCanonicalPage } from "./lib/fb-draft-ads.mjs";
+import { createDraftAd, createCleanDraft, uploadAdImage, uploadAdVideo, waitVideoReady, getVideoThumbnail, createCleanVideoDraft, createAssetCustomizationDraft, copyObject, configureNewObject, qaAd, XERO, accountCanonicalPage, accountCanonicalIdentities } from "./lib/fb-draft-ads.mjs";
 import { activeClients, listAdsets, accountsForSlug, nameForSlug, bibleRows, markUploaded } from "./data.mjs";
 import { assemblePlan, normalizeCta } from "./assembly.mjs";
 import { UI_HTML } from "./ui.mjs";
@@ -311,7 +311,12 @@ async function handleCreateDrafts(env, request) {
   const who = await currentEmail(env, request);
 
   let pageId = null;
-  try { pageId = await accountCanonicalPage(fbArgs(env).token, fbArgs(env).secret, accountId); } catch { pageId = null; }
+  let instagramActorId = null;
+  try { 
+    const ids = await accountCanonicalIdentities(fbArgs(env).token, fbArgs(env).secret, accountId); 
+    pageId = ids.pageId;
+    instagramActorId = ids.instagramActorId;
+  } catch { pageId = null; instagramActorId = null; }
 
   const { rows } = await bibleRows(env, slug);
   const results = [];
@@ -412,19 +417,19 @@ async function handleCreateDrafts(env, request) {
         created = await createAssetCustomizationDraft({ 
           ...fbArgs(env), accountId, adsetId, plan, 
           images: finalImages, videos: finalVideos, 
-          instagramActorId: item.instagram_actor_id 
+          instagramActorId: item.instagram_actor_id || instagramActorId 
         });
       } else if (finalVideos.length === 1) {
         created = await createCleanVideoDraft({ 
           ...fbArgs(env), accountId, adsetId, plan, 
           videoId: finalVideos[0].id, thumbnailUrl: finalVideos[0].thumb, 
-          instagramActorId: item.instagram_actor_id 
+          instagramActorId: item.instagram_actor_id || instagramActorId 
         });
       } else if (finalImages.length === 1) {
         created = await createCleanDraft({ 
           ...fbArgs(env), accountId, adsetId, plan, 
           imageHash: finalImages[0].hash, imageUrl: finalImages[0].url, 
-          instagramActorId: item.instagram_actor_id 
+          instagramActorId: item.instagram_actor_id || instagramActorId 
         });
       }
 
