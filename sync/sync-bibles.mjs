@@ -115,7 +115,12 @@ async function sync() {
           
           // Check if we extracted a hyperlink for this cell
           const hLinkKey = `${i}_${key.toLowerCase()}`;
-          if (hyperlinkMap[hLinkKey]) {
+          
+          // Only use the hyperlink if it's explicitly for a URL column
+          // Otherwise, if someone hyperlinked the "Creative Description" text, we don't want to replace the text with the URL
+          const isUrlColumn = key.toLowerCase().includes('link') || key.toLowerCase().includes('url') || key.toLowerCase().includes('drive') || key.toLowerCase().includes('gdrive');
+          
+          if (isUrlColumn && hyperlinkMap[hLinkKey]) {
             return hyperlinkMap[hLinkKey];
           }
           
