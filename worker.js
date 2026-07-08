@@ -4,6 +4,7 @@
 // engine in ./lib/fb-draft-ads.mjs. M0 = scaffold + health + engine routes.
 
 import { createDraftAd, createCleanDraft, uploadAdImage, uploadAdVideo, waitVideoReady, getVideoThumbnail, createCleanVideoDraft, createAssetCustomizationDraft, copyObject, configureNewObject, qaAd, XERO, accountCanonicalPage, accountCanonicalIdentities } from "./lib/fb-draft-ads.mjs";
+import { notifySlack } from "./lib/slack.mjs";
 import { activeClients, listAdsets, accountsForSlug, nameForSlug, bibleRows, markUploaded } from "./data.mjs";
 import { assemblePlan, normalizeCta } from "./assembly.mjs";
 import { UI_HTML } from "./ui.mjs";
@@ -493,6 +494,43 @@ async function handleCreateDrafts(env, request) {
   // Write-back: any row with ≥1 successful ad leaves the queue (cross-session dedupe).
   const doneRowIds = [...new Set(results.filter((r) => r.ok).map((r) => r.row_id))];
   await markUploaded(env, slug, doneRowIds);
+  
+  // Slack notifications
+  if (created > 0) {
+    const webhookEnvKey = `SLACK_WEBHOOK_${slug.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+    const webhookUrl = env[webhookEnvKey] || env.SLACK_WEBHOOK_URL;
+    if (webhookUrl) {
+      const successAds = results.filter(r => r.ok);
+      const blocks = [
+        {
+          type: "header",
+          text: { type: "plain_text", text: `🚀 New PAUSED Drafts Created for ${slug}` }
+        },
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: `*${created}* new ad(s) were just drafted to Meta by ${who}.` }
+        }
+      ];
+      
+      successAds.slice(0, 10).forEach(ad => {
+        blocks.push({
+          type: "section",
+          text: { type: "mrkdwn", text: `• *${ad.name}*\n<${ad.ads_manager_url}|View in Ads Manager>` }
+        });
+      });
+      
+      if (successAds.length > 10) {
+        blocks.push({
+          type: "context",
+          elements: [{ type: "mrkdwn", text: `...and ${successAds.length - 10} more.` }]
+        });
+      }
+      
+      // Fire and forget
+      request.ctx?.waitUntil?.(notifySlack(webhookUrl, { blocks })) || notifySlack(webhookUrl, { blocks });
+    }
+  }
+
   return json({ ok: true, client: slug, requested: items.length, created, drafted_rows: doneRowIds, results });
 }
 
