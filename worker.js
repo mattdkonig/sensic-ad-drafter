@@ -414,34 +414,77 @@ async function handleCreateDrafts(env, request) {
         continue;
       }
 
-      if (finalImages.length + finalVideos.length > 1) {
-        // Use Placement Asset Customization (PAC) for multiple creatives
-        created = await createAssetCustomizationDraft({ 
-          ...fbArgs(env), accountId, adsetId, plan, 
-          images: finalImages, videos: finalVideos, 
-          instagramActorId: item.instagram_actor_id || instagramActorId,
-          instagramUserId: item.instagram_user_id || instagramUserId
-        });
-      } else if (finalVideos.length === 1) {
-        created = await createCleanVideoDraft({ 
-          ...fbArgs(env), accountId, adsetId, plan, 
-          videoId: finalVideos[0].id, thumbnailUrl: finalVideos[0].thumb, 
-          instagramActorId: item.instagram_actor_id || instagramActorId,
-          instagramUserId: item.instagram_user_id || instagramUserId
-        });
-      } else if (finalImages.length === 1) {
-        created = await createCleanDraft({ 
-          ...fbArgs(env), accountId, adsetId, plan, 
-          imageHash: finalImages[0].hash, imageUrl: finalImages[0].url, 
-          instagramActorId: item.instagram_actor_id || instagramActorId,
-          instagramUserId: item.instagram_user_id || instagramUserId
-        });
+      // Group assets by format to determine if we need to create multiple ads (variants)
+      const formatGroups = {};
+      finalImages.forEach(img => {
+        const f = img.format || 'unknown';
+        if (!formatGroups[f]) formatGroups[f] = { images: [], videos: [] };
+        formatGroups[f].images.push(img);
+      });
+      finalVideos.forEach(vid => {
+        const f = vid.format || 'unknown';
+        if (!formatGroups[f]) formatGroups[f] = { images: [], videos: [] };
+        formatGroups[f].videos.push(vid);
+      });
+
+      let numAds = 1;
+      for (const group of Object.values(formatGroups)) {
+        numAds = Math.max(numAds, group.images.length, group.videos.length);
       }
 
-      let qa = null;
-      try { const q = await qaAd({ ...fbArgs(env), adId: created.ad_id, expectedPage: pageId || "", expectedAccount: accountId }); qa = { pass: q.pass, fails: q.fails, warns: q.warns }; } catch { qa = null; }
-      await audit(env, { user: who, client: slug, account_id: accountId, adset_id: adsetId, row_id: rowId, ad_id: created.ad_id, qa });
-      results.push({ row_id: rowId, ok: true, adset_id: adsetId, ...created, qa });
+      const originalAdName = plan.ad_name;
+
+      for (let i = 0; i < numAds; i++) {
+        const adImages = [];
+        const adVideos = [];
+
+        for (const group of Object.values(formatGroups)) {
+          if (group.images.length > 0) {
+            adImages.push(group.images[Math.min(i, group.images.length - 1)]);
+          }
+          if (group.videos.length > 0) {
+            adVideos.push(group.videos[Math.min(i, group.videos.length - 1)]);
+          }
+        }
+
+        // If creating multiple ads, append a variant suffix
+        if (numAds > 1) {
+          plan.ad_name = `${originalAdName} - Var ${i + 1}`;
+        }
+
+        try {
+          if (adImages.length + adVideos.length > 1) {
+            // Use Placement Asset Customization (PAC) for multiple creatives
+            created = await createAssetCustomizationDraft({ 
+              ...fbArgs(env), accountId, adsetId, plan, 
+              images: adImages, videos: adVideos, 
+              instagramActorId: item.instagram_actor_id || instagramActorId,
+              instagramUserId: item.instagram_user_id || instagramUserId
+            });
+          } else if (adVideos.length === 1) {
+            created = await createCleanVideoDraft({ 
+              ...fbArgs(env), accountId, adsetId, plan, 
+              videoId: adVideos[0].id, thumbnailUrl: adVideos[0].thumb, 
+              instagramActorId: item.instagram_actor_id || instagramActorId,
+              instagramUserId: item.instagram_user_id || instagramUserId
+            });
+          } else if (adImages.length === 1) {
+            created = await createCleanDraft({ 
+              ...fbArgs(env), accountId, adsetId, plan, 
+              imageHash: adImages[0].hash, imageUrl: adImages[0].url, 
+              instagramActorId: item.instagram_actor_id || instagramActorId,
+              instagramUserId: item.instagram_user_id || instagramUserId
+            });
+          }
+
+          let qa = null;
+          try { const q = await qaAd({ ...fbArgs(env), adId: created.ad_id, expectedPage: pageId || "", expectedAccount: accountId }); qa = { pass: q.pass, fails: q.fails, warns: q.warns }; } catch { qa = null; }
+          await audit(env, { user: who, client: slug, account_id: accountId, adset_id: adsetId, row_id: rowId, ad_id: created.ad_id, qa });
+          results.push({ row_id: rowId, ok: true, adset_id: adsetId, ...created, qa });
+        } catch (e) {
+          results.push({ row_id: rowId, ok: false, error: String(e?.message || e) });
+        }
+      }
     } catch (e) {
       results.push({ row_id: rowId, ok: false, error: String(e?.message || e) });
     }
