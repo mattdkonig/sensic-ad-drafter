@@ -1,3 +1,4 @@
+import { syncBibles } from "./lib/sync-worker.mjs";
 // sensic-ad-drafter/worker.js
 // Team tool: turn the client bible into PAUSED draft ads in Meta, with a QA gate.
 // Subdir Worker (sibling to creative-brief / sensic-dispatcher). Reuses the proven
@@ -597,6 +598,17 @@ export default {
       if (p === "/whoami") { const email = await currentEmail(env, request); return json({ ok: true, authed: email !== "unknown", email: email === "unknown" ? null : email }); }
       if (p === "/health") return json({ ok: true, service: "sensic-ad-drafter", build: BUILD_LABEL, hasFbToken: fbReady(env), hasFbSecret: !!(env.FB_APP_SECRET && String(env.FB_APP_SECRET).trim()), hasAuthToken: !!env.BRAIN_API_TOKEN, accessEnforced: env.ACCESS_ENFORCED === "true", hasKv: !!env.DRAFTER_KV });
       if (p === "/api/version") return json({ ok: true, service: "sensic-ad-drafter", build: BUILD_LABEL });
+      if (p === "/api/sync" && request.method === "POST") {
+        const a = await requireAuth(env, request); if (a) return a;
+        try {
+          const urlObj = new URL(request.url);
+          const targetSlug = urlObj.searchParams.get("client");
+          const results = await syncBibles(env, targetSlug);
+          return json({ ok: true, results });
+        } catch (e) {
+          return json({ ok: false, error: String(e.message || e) }, 500);
+        }
+      }
       if (p === "/api/clients" && request.method === "GET") { const a = await requireAuth(env, request); if (a) return a; const r = await activeClients(env); return json({ ok: true, ...r }); }
       if (p === "/api/adsets" && request.method === "GET") return await handleAdsets(env, request, url);
       if (p === "/api/bible" && request.method === "GET") return await handleBible(env, request, url);

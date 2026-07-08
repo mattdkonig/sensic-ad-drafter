@@ -64,7 +64,7 @@ button:disabled{opacity:.45;cursor:not-allowed}.linkbtn{background:none;border:n
 <main>
 <div id="banner"></div>
 <div class="grid">
-  <div><label>1 · Client</label><select id="client"><option>Loading…</option></select></div>
+  <div><label>1 · Client <button class="linkbtn hide" id="sync-client" style="float:right">↻ Sync from Google Sheet</button></label><select id="client"><option>Loading…</option></select></div>
   <div><label>2 · Ad set <span class="muted">— default for rows that don't auto-match</span> <button class="linkbtn" id="new-adset" style="float:right">+ New ad set / campaign</button></label><input id="adset-search" class="hide" type="search" placeholder="Filter campaigns or ad sets…" autocomplete="off" style="margin-bottom:8px; height: 38px;"><select id="adset"><option>Select a client first</option></select></div>
 </div>
 <div class="grid"><div><label>Status of new ads</label><div class="pill">⏸&nbsp; PAUSED (draft) — never goes live automatically</div></div><div></div></div>
