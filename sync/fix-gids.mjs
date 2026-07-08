@@ -35,7 +35,7 @@ async function fixGids() {
         // Find if the current GID exists
         const currentGidExists = tabs.some(t => String(t.properties.sheetId) === String(sheet.gid));
         
-        if (!currentGidExists || sheet.gid === "1355660925") {
+        if (!currentGidExists) {
           // It's a placeholder or invalid. Let's pick the first tab, or one that looks like the main one.
           // Usually the first tab (index 0) is the main one.
           const mainTab = tabs[0];

@@ -30,7 +30,8 @@ export function detectFormatFromName(name) {
 }
 
 export function normalizeName(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (!name) return "";
+  return String(name).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 export function scoreMatch(fileName, adName) {
