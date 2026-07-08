@@ -1,7 +1,0 @@
-import { syncBibles } from "./lib/sync-worker.mjs";
-
-// Inside fetch handler:
-// if (url.pathname === "/api/sync") {
-//   const results = await syncBibles(env);
-//   return new Response(JSON.stringify({ ok: true, results }), { headers: { "Content-Type": "application/json" } });
-// }
