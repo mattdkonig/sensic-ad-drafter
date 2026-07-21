@@ -69,7 +69,7 @@ button:disabled{opacity:.45;cursor:not-allowed}.linkbtn{background:none;border:n
 </div>
 <div class="grid"><div><label>Status of new ads</label><div class="pill">⏸&nbsp; PAUSED (draft) — never goes live automatically</div></div><div></div></div>
 <div class="section-h"><h2>3 · Bible rows — Ad Tracker, not yet uploaded</h2><span class="meta" id="bible-count"></span></div>
-<div class="bible-bar hide" id="bible-bar"><input id="bible-search" type="search" placeholder="Filter rows by name…" autocomplete="off"><button class="linkbtn" id="select-all">Select all</button><button class="linkbtn" id="clear-all">Clear</button></div>
+<div class="bible-bar hide" id="bible-bar"><select id="tab-selector" class="hide" style="width:auto;"></select><input id="bible-search" type="search" placeholder="Filter rows by name…" autocomplete="off"><button class="linkbtn" id="select-all">Select all</button><button class="linkbtn" id="clear-all">Clear</button></div>
 <div class="card" id="bible"><div class="empty">Select a client.</div></div>
 <div id="preview-out" style="margin-top:24px;margin-bottom:24px"></div>
 <div class="actions"><button class="primary" id="preview" disabled>Preview</button><button id="create" class="hide">Create PAUSED drafts</button><span class="muted" id="status"></span>
@@ -215,18 +215,35 @@ function rowMeta(r){
  if(r.objective)parts.push(esc(r.objective));
  return parts.join(' · ');
 }
-function updateCount(){const n=SELECTED.size;const q=($('#bible-search').value||'').trim().toLowerCase();const shown=q?BIBLE.filter(r=>String(r.concept||'').toLowerCase().includes(q)).length:BIBLE.length;const base=BIBLE.length?((q&&shown!==BIBLE.length)?(shown+' of '+BIBLE.length+' shown'):(BIBLE.length+' eligible')):'';$('#bible-count').textContent=base+(n?' · '+n+' selected':'');}
+function updateCount(){const n=SELECTED.size;const q=($('#bible-search').value||'').trim().toLowerCase();const t=$('#tab-selector').value;let shown=BIBLE.length;if(t||q){let r=BIBLE;if(t)r=r.filter(x=>x.tab===t);if(q)r=r.filter(x=>String(x.concept||'').toLowerCase().includes(q));shown=r.length;}const base=BIBLE.length?((shown!==BIBLE.length)?(shown+' of '+BIBLE.length+' shown'):(BIBLE.length+' eligible')):'';$('#bible-count').textContent=base+(n?' · '+n+' selected':'');}
+function updateTabSelector() {
+  const tabs = [...new Set(BIBLE.map(r => r.tab).filter(Boolean))];
+  const sel = $('#tab-selector');
+  if (tabs.length <= 1) {
+    sel.classList.add('hide');
+    return;
+  }
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All Tabs</option>' + tabs.map(t => '<option value="'+esc(t)+'">'+esc(t)+'</option>').join('');
+  if (tabs.includes(current)) sel.value = current;
+  sel.classList.remove('hide');
+}
+
 function renderBible(){
  if(!BIBLE.length){$('#bible-bar').classList.add('hide');$('#bible').innerHTML='<div class="empty">No eligible bible rows for this client'+(BIBLE_SOURCE==='none'?' — bible not synced yet':' (all rows already marked uploaded)')+'.</div>';updateCount();return}
  $('#bible-bar').classList.remove('hide');
  const q=($('#bible-search').value||'').trim().toLowerCase();
- const rows=q?BIBLE.filter(r=>String(r.concept||'').toLowerCase().includes(q)):BIBLE;
- if(!rows.length){$('#bible').innerHTML='<div class="empty">No rows match “'+esc(q)+'”.</div>';updateCount();return}
- $('#bible').innerHTML=rows.map(r=>{const m=rowMeta(r);return '<label class="brow"><input type="checkbox" class="rowcb" value="'+esc(r.id)+'"'+(SELECTED.has(r.id)?' checked':'')+'><div><div class="t">'+(r.sheet_row?'<span class="muted" style="margin-right:8px;font-weight:normal">Line '+r.sheet_row+'</span>':'')+esc(r.concept||'(untitled)')+'</div>'+(m?'<div class="meta">'+m+'</div>':'')+'</div>'+(r.cta?'<div class="cta">'+esc(r.cta)+'</div>':'')+'</label>'}).join('');
+ const t=$('#tab-selector').value;
+ let rows=BIBLE;
+ if(t) rows=rows.filter(r=>r.tab===t);
+ if(q) rows=rows.filter(r=>String(r.concept||'').toLowerCase().includes(q));
+ if(!rows.length){$('#bible').innerHTML='<div class="empty">No rows match your filters.</div>';updateCount();return}
+ $('#bible').innerHTML=rows.map(r=>{const m=rowMeta(r);return '<label class="brow"><input type="checkbox" class="rowcb" value="'+esc(r.id)+'"'+(SELECTED.has(r.id)?' checked':'')+'><div><div class="t">'+(r.sheet_row?'<span class="muted" style="margin-right:8px;font-weight:normal">Line '+r.sheet_row+'</span>':'')+esc(r.concept||'(untitled)')+(r.tab?' <span class="muted" style="font-weight:normal;font-size:11px;margin-left:8px;background:#333;padding:2px 6px;border-radius:4px;">'+esc(r.tab)+'</span>':'')+'</div>'+(m?'<div class="meta">'+m+'</div>':'')+'</div>'+(r.cta?'<div class="cta">'+esc(r.cta)+'</div>':'')+'</label>'}).join('');
  updateCount();
 }
 $('#bible-search').oninput=()=>renderBible();
-$('#select-all').onclick=()=>{const q=($('#bible-search').value||'').trim().toLowerCase();(q?BIBLE.filter(r=>String(r.concept||'').toLowerCase().includes(q)):BIBLE).forEach(r=>SELECTED.add(r.id));renderBible();refresh();};
+$('#tab-selector').onchange=()=>renderBible();
+$('#select-all').onclick=()=>{const q=($('#bible-search').value||'').trim().toLowerCase();const t=$('#tab-selector').value;let rows=BIBLE;if(t)rows=rows.filter(r=>r.tab===t);if(q)rows=rows.filter(r=>String(r.concept||'').toLowerCase().includes(q));rows.forEach(r=>SELECTED.add(r.id));renderBible();refresh();};
 $('#clear-all').onclick=()=>{SELECTED.clear();renderBible();refresh();};
 
 const modal=$('#modal');
@@ -381,7 +398,7 @@ $('#create').onclick=async()=>{
   const rows=(j.results||[]).map(x=>x.ok?'<div class="brow"><div><span class="badge b-ok">created PAUSED</span> '+esc(x.name||x.ad_id)+(x.qa?' <span class="badge '+(x.qa.pass?'b-ok':'b-warn')+'">QA '+(x.qa.pass?'pass':x.qa.fails+' fail')+'</span>':'')+'</div>'+(x.ads_manager_url?'<a class="cta" href="'+esc(x.ads_manager_url)+'" target="_blank">open in Ads Manager ↗</a>':'')+'</div>':'<div class="brow"><div><span class="badge b-bad">failed</span> '+esc(x.row_id)+' — '+esc(x.error||'')+'</div></div>').join('');
   $('#preview-out').innerHTML='<div class="section-h"><h2>Results — '+(j.created||0)+' of '+(j.requested||items.length)+' created PAUSED</h2></div><div class="card">'+rows+'</div><div class="muted" style="margin-top:10px">Drafted rows are removed from the queue. Review each draft in Ads Manager, then publish there. Nothing is live.</div>';
   // Write-back removed the drafted rows — refresh the bible list so they disappear.
-  if((j.drafted_rows||[]).length){try{const b=await api('/api/bible?client='+encodeURIComponent(client));BIBLE=b.rows||[];BIBLE_SOURCE=b.source||'';(j.drafted_rows||[]).forEach(id=>SELECTED.delete(id));renderBible();}catch(_){}}
+  if((j.drafted_rows||[]).length){try{const b=await api('/api/bible?client='+encodeURIComponent(client));BIBLE=b.rows||[];BIBLE_SOURCE=b.source||'';(j.drafted_rows||[]).forEach(id=>SELECTED.delete(id));updateTabSelector();renderBible();}catch(_){}}
  }catch(_){$('#status').textContent='';banner('Create request failed — try again.','err')}
  $('#create').disabled=false;
 };
