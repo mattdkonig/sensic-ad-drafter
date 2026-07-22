@@ -13,7 +13,7 @@ import { UI_HTML } from "./ui.mjs";
 import { issueSession, verifySession, readCookie, SESSION_COOKIE, setCookieHeader, clearCookieHeader } from "./auth.mjs";
 import { resolveDriveLink, extractMultipleDriveUrls } from "./drive.mjs";
 
-const BUILD_LABEL = "v1.0.0-qa-fixes";
+const BUILD_LABEL = "v1.0.1-p0-fix";
 
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
@@ -399,11 +399,11 @@ async function handleCreateDrafts(env, request) {
           try {
             const fetchOpts = {};
             if (asset.url.includes("googleapis.com/drive")) {
-              try {
-                const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT);
-                const driveToken = await getGoogleToken(sa.client_email, sa.private_key, ['https://www.googleapis.com/auth/drive.readonly']);
+              if (driveToken) {
                 fetchOpts.headers = { 'Authorization': `Bearer ${driveToken}` };
-              } catch (e) { console.error("Failed to get drive token for download", e); }
+              } else {
+                console.error("No drive token available for download");
+              }
             }
             const res = await fetch(asset.url, fetchOpts);
             if (!res.ok) throw new Error(`Failed to download from Drive: ${res.status}`);
@@ -458,7 +458,7 @@ async function handleCreateDrafts(env, request) {
         // Only push a failure if we haven't pushed a retry message
         if (!results.some(r => r.row_id === rowId && r.message && r.message.includes("processing"))) {
           results.push({ row_id: rowId, ok: false, error: errorMsg });
-          await auditFailure(env, { user: who, client: slug, account_id: accountId, adset_id: targetAdset, row_id: rowId, error: errorMsg });
+          await auditFailure(env, { user: who, client: slug, account_id: accountId, adset_id: adsetId, row_id: rowId, error: errorMsg });
         }
         continue;
       }
@@ -543,7 +543,7 @@ async function handleCreateDrafts(env, request) {
       }
     } catch (e) {
       results.push({ row_id: rowId, ok: false, error: String(e?.message || e) });
-      await auditFailure(env, { user: who, client: slug, account_id: accountId, adset_id: targetAdset, row_id: rowId, error: String(e?.message || e) });
+      await auditFailure(env, { user: who, client: slug, account_id: accountId, adset_id: adsetId, row_id: rowId, error: String(e?.message || e) });
     }
   }
   const created = results.filter((r) => r.ok).length;

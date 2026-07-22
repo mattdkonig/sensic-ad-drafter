@@ -104,6 +104,22 @@ button:disabled{opacity:.45;cursor:not-allowed}.linkbtn{background:none;border:n
 </div>
 </div>
 
+
+<div id="adset-modal" class="modal-bg hide">
+ <div class="modal" role="dialog" aria-modal="true" aria-labelledby="am-title">
+  <h3 id="am-title">Select Target Ad Set</h3>
+  <p class="muted">Choose an ad set for this specific row.</p>
+  <input id="am-search" type="search" placeholder="Search campaigns and ad sets…" autocomplete="off" style="margin-bottom:12px;width:100%;padding:8px">
+  <select id="am-select" size="10" style="width:100%;height:200px;margin-bottom:16px"></select>
+  <div class="modal-actions">
+    <button id="am-clear">Clear Selection</button>
+    <div style="flex:1"></div>
+    <button id="am-cancel">Cancel</button>
+    <button class="primary" id="am-save">Apply</button>
+  </div>
+ </div>
+</div>
+
 <div id="login-shell">
 <div class="login"><div class="logo" aria-hidden="true">🚀</div><h1>Sensic Ad Drafter</h1><p>Sign in to create PAUSED draft ads from a client bible.</p>
 <div id="login-banner"></div>
@@ -129,6 +145,7 @@ $('#login-form').onsubmit=async e=>{e.preventDefault();const btn=$('#login-btn')
 $('#logout').onclick=async()=>{await fetch('/api/logout',{method:'POST',credentials:'include'}).catch(()=>{});showLogin('Signed out.');};
 
 let BIBLE=[],ADSETS=[],BIBLE_SOURCE='';
+window.__videoIdsByRow = {};
 const SELECTED=new Set();
 const CTA_OPTS=[{t:'Shop Now',v:'SHOP_NOW'},{t:'Learn More',v:'LEARN_MORE'},{t:'Sign Up',v:'SIGN_UP'},{t:'Subscribe',v:'SUBSCRIBE'},{t:'Get Offer',v:'GET_OFFER'},{t:'Get Quote',v:'GET_QUOTE'},{t:'Order Now',v:'ORDER_NOW'},{t:'Book Now',v:'BOOK_TRAVEL'},{t:'Contact Us',v:'CONTACT_US'},{t:'Download',v:'DOWNLOAD'},{t:'Visit Store',v:'GET_DIRECTIONS'},{t:'See Menu',v:'SEE_MENU'},{t:'Watch More',v:'WATCH_MORE'},{t:'Apply Now',v:'APPLY_NOW'}];
 const adsetById=id=>ADSETS.find(a=>a.id===id)||null;
@@ -331,14 +348,21 @@ $('#preview').onclick=async()=>{
      if(mode!=='manual'&&p.drive_files&&p.drive_files.length){
        driveHtml='<div style="margin-top:12px;padding:8px;background:var(--panel);border-radius:6px;border:1px solid var(--line)"><div class="pc-l" style="margin:0 0 8px 0;font-weight:600">Drive Auto-Resolution</div>'+
        p.drive_files.map(f=>{
-         const isChecked = f.matchScore >= 0.4 ? 'checked' : '';
-         const badgeClass = f.matchScore >= 0.8 ? 'b-ok' : (f.matchScore >= 0.4 ? 'b-warn' : 'b-bad');
+         const isChecked = (f.isDirectFile || f.matchScore >= 0.4) ? 'checked' : '';
+         const badgeClass = (f.isDirectFile || f.matchScore >= 0.8) ? 'b-ok' : (f.matchScore >= 0.4 ? 'b-warn' : 'b-bad');
          const reason = f.matchReason ? ' - ' + f.matchReason : '';
          return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer"><input type="checkbox" class="drive-file-cb" data-row="'+esc(p.row_id)+'" data-url="'+esc(f.download_url)+'" data-mime="'+esc(f.mime)+'" data-name="'+esc(f.name)+'" data-format="'+esc(f.format)+'" '+isChecked+'> <span class="badge '+badgeClass+'">'+f.format+'</span> '+esc(f.name)+' <span class="muted">('+Math.round(f.size/1024)+' KB'+reason+')</span></label>';
        }).join('')+
        (p.drive_skipped&&p.drive_skipped.length?'<div class="muted" style="font-size:12px;margin-top:8px">Skipped '+p.drive_skipped.length+' unsupported file(s)</div>':'')+'</div>';
      }
-     ctrl='<div class="pc-match">'+mb+'</div><label class="pc-l">Target ad set</label><input type="search" class="creative-adset-search" placeholder="Search ad sets..." style="margin-bottom:4px;height:30px;font-size:12px;padding:4px 8px;"><select class="creative-adset" data-row="'+esc(p.row_id)+'">'+adsetOptionsHtml(m?m.adset.id:'')+'</select>'
+     const selAdset = m ? m.adset.id : '';
+     const selName = m ? m.adset.name : 'Default';
+     ctrl='<div class="pc-match">'+mb+'</div><label class="pc-l">Target ad set</label>' +
+          '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">' +
+          '<button class="adset-override-btn" data-row="'+esc(p.row_id)+'" data-selected="'+esc(selAdset)+'" style="flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;font-size:12px;cursor:pointer">' +
+          (selAdset ? esc(selName) : '— use default ad set —') + '</button>' +
+          '</div>' +
+          '<input type="hidden" class="creative-adset" data-row="'+esc(p.row_id)+'" value="'+esc(selAdset)+'">';
       +'<label class="pc-l">Button (CTA)</label><select class="creative-cta" data-row="'+esc(p.row_id)+'">'+CTA_OPTS.map(o=>'<option value="'+o.t+'"'+(o.v===(p.cta&&p.cta.enum)?' selected':'')+'>'+o.t+'</option>').join('')+'</select>'
       +driveHtml
       +'<label class="pc-l" style="margin-top:12px">'+(driveHtml?'Or attach manually':'Creative')+' (JPG/PNG or MP4/MOV)</label><input type="file" accept="image/png,image/jpeg,video/mp4,video/quicktime" multiple class="creative-file" data-row="'+esc(p.row_id)+'">'
@@ -351,6 +375,74 @@ $('#preview').onclick=async()=>{
   $('#preview-out').scrollIntoView({behavior:'smooth',block:'start'});
  }catch(_){$('#status').textContent='';banner('Could not build the preview — try again.','err');}
 };
+
+let currentAdsetRow = null;
+
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('adset-override-btn')) {
+    e.preventDefault();
+    currentAdsetRow = e.target.dataset.row;
+    const currentSel = e.target.dataset.selected;
+    
+    $('#am-select').innerHTML = adsetOptionsHtml(currentSel);
+    $('#am-search').value = '';
+    
+    // Reset display of all options
+    Array.from($('#am-select').options).forEach(opt => opt.style.display = '');
+    Array.from($('#am-select').querySelectorAll('optgroup')).forEach(grp => grp.style.display = '');
+    
+    $('#adset-modal').classList.remove('hide');
+    $('#am-search').focus();
+  }
+});
+
+if ($('#am-cancel')) $('#am-cancel').onclick = () => $('#adset-modal').classList.add('hide');
+if ($('#am-clear')) $('#am-clear').onclick = () => {
+  if (currentAdsetRow) {
+    const btn = document.querySelector('.adset-override-btn[data-row="'+currentAdsetRow+'"]');
+    const inp = document.querySelector('.creative-adset[data-row="'+currentAdsetRow+'"]');
+    if (btn && inp) {
+      btn.dataset.selected = '';
+      btn.textContent = '— use default ad set —';
+      inp.value = '';
+    }
+  }
+  $('#adset-modal').classList.add('hide');
+};
+if ($('#am-save')) $('#am-save').onclick = () => {
+  if (currentAdsetRow) {
+    const sel = $('#am-select');
+    const val = sel.value;
+    const text = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+    
+    const btn = document.querySelector('.adset-override-btn[data-row="'+currentAdsetRow+'"]');
+    const inp = document.querySelector('.creative-adset[data-row="'+currentAdsetRow+'"]');
+    
+    if (btn && inp) {
+      btn.dataset.selected = val;
+      btn.textContent = val ? text : '— use default ad set —';
+      inp.value = val;
+    }
+  }
+  $('#adset-modal').classList.add('hide');
+};
+
+if ($('#am-search')) $('#am-search').oninput = (e) => {
+  const q = e.target.value.toLowerCase();
+  const sel = $('#am-select');
+  
+  Array.from(sel.options).forEach(opt => {
+    if (opt.value === "") return;
+    const isVisible = opt.text.toLowerCase().includes(q) || (opt.parentElement.label && opt.parentElement.label.toLowerCase().includes(q));
+    opt.style.display = isVisible ? '' : 'none';
+  });
+  
+  Array.from(sel.querySelectorAll('optgroup')).forEach(group => {
+    const visibleInGroup = Array.from(group.options).some(opt => opt.style.display !== 'none');
+    group.style.display = visibleInGroup ? '' : 'none';
+  });
+};
+
 // Read-more toggle for long primary text (delegated).
 document.addEventListener('click',e=>{if(e.target.classList&&e.target.classList.contains('more-toggle')){const pm=e.target.closest('.pc-m');if(pm){pm.querySelector('.m-short').classList.toggle('hide');pm.querySelector('.m-full').classList.toggle('hide');}}});
 $('#create').onclick=async()=>{
@@ -383,11 +475,18 @@ $('#create').onclick=async()=>{
    const ep=(isVid?'/api/upload-video?client=':'/api/upload-image?client=')+encodeURIComponent(client);
    const r=await fetch(ep,{method:'POST',credentials:'include',body:fd});const j=await r.json().catch(()=>({}));
    if(j.ok&&j.image_hash)getRow(row).assets.push({type:'image',hash:j.image_hash,format:'unknown'});
-   else if(j.ok&&j.video_id)getRow(row).assets.push({type:'video',id:j.video_id,format:'unknown'});
+   else if(j.ok&&j.video_id) {
+     window.__videoIdsByRow[row] = j.video_id;
+     getRow(row).assets.push({type:'video',id:j.video_id,format:'unknown'});
+   }
    else upErr.push(file.name+': '+(j.message||'upload rejected'));
   }catch(_){upErr.push(file.name+': network error')}}
  for(const {row,url,mime,name,format} of driveFiles){
-  getRow(row).assets.push({type:'drive',url,mime,name,format});
+  const asset = {type:'drive',url,mime,name,format};
+  if (window.__videoIdsByRow[row] && (mime === 'video/mp4' || mime === 'video/quicktime' || name.match(/\.(mp4|mov|m4v)$/i))) {
+    asset.video_id = window.__videoIdsByRow[row];
+  }
+  getRow(row).assets.push(asset);
  }
  const items=Object.values(itemsByRow);
  if(upErr.length)banner((items.length?'Some creatives failed to upload ('+upErr.length+' of '+files.length+'): ':'All uploads failed: ')+esc(upErr.join('; ')),'err');
@@ -395,10 +494,10 @@ $('#create').onclick=async()=>{
  $('#status').textContent='Creating '+items.length+' PAUSED draft(s)…';
  try{const r=await fetch('/api/create-drafts',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({client,adset_id:adset||undefined,items})});
   const j=await r.json().catch(()=>({}));$('#status').textContent='';
-  // Persist video IDs for retries
+  // Persist video IDs for retries durably
   (j.results||[]).forEach(x => {
     if (x.ok && x.video_id) {
-      getRow(x.row_id).assets.push({type:'video', id: x.video_id, format: 'unknown'});
+      window.__videoIdsByRow[x.row_id] = x.video_id;
     }
   });
   
