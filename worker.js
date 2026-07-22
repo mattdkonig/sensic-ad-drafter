@@ -13,7 +13,7 @@ import { UI_HTML } from "./ui.mjs";
 import { issueSession, verifySession, readCookie, SESSION_COOKIE, setCookieHeader, clearCookieHeader } from "./auth.mjs";
 import { resolveDriveLink, extractMultipleDriveUrls } from "./drive.mjs";
 
-const BUILD_LABEL = "v0.9.1-loop";
+const BUILD_LABEL = "v1.0.0-qa-fixes";
 
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
@@ -139,9 +139,17 @@ async function handlePreview(env, request) {
   const selected = Array.isArray(body.row_ids) && body.row_ids.length ? rows.filter((r) => body.row_ids.includes(r.id)) : rows;
   
   const plans = [];
+  
+  // Get token once per request
+  let driveToken = null;
+  try {
+    const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT);
+    driveToken = await getGoogleToken(sa.client_email, sa.private_key, ['https://www.googleapis.com/auth/drive.readonly']);
+  } catch (e) { console.error("Failed to get drive token", e); }
+
   for (const r of selected) {
     const plan = assemblePlan(r, { pageId });
-    if (env.WORKFLOW_MODE !== "manual" && r.creatives_folder && env.GOOGLE_DRIVE_API_KEY) {
+    if (env.WORKFLOW_MODE !== "manual" && r.creatives_folder) { // Removed GOOGLE_DRIVE_API_KEY dependency
       const urls = extractMultipleDriveUrls(r.creatives_folder);
       
       let allFiles = [];
@@ -149,11 +157,6 @@ async function handlePreview(env, request) {
       let allErrors = [];
       
       for (const url of urls) {
-        let driveToken = null;
-        try {
-          const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT);
-          driveToken = await getGoogleToken(sa.client_email, sa.private_key, ['https://www.googleapis.com/auth/drive.readonly']);
-        } catch (e) { console.error("Failed to get drive token", e); }
         const driveData = await resolveDriveLink(url, driveToken, plan.ad_name);
         if (driveData.ok) {
           allFiles.push(...driveData.files);
@@ -205,6 +208,13 @@ async function audit(env, rec) {
   rec.ts = new Date().toISOString();
   if (env.DRAFTER_KV) { try { await env.DRAFTER_KV.put(`audit:${rec.ts}:${rec.ad_id || "x"}`, JSON.stringify(rec)); } catch { /* best effort */ } }
   console.log("[audit]", JSON.stringify(rec));
+}
+
+async function auditFailure(env, rec) {
+  rec.ts = new Date().toISOString();
+  rec.status = "failed";
+  if (env.DRAFTER_KV) { try { await env.DRAFTER_KV.put(`audit_fail:${rec.ts}:${rec.row_id || "x"}`, JSON.stringify(rec)); } catch { /* best effort */ } }
+  console.log("[audit_fail]", JSON.stringify(rec));
 }
 
 // Start a new ad set / campaign (copied PAUSED from an existing ad set).
@@ -333,6 +343,13 @@ async function handleCreateDrafts(env, request) {
   const seen = new Set();
   const delay = ms => new Promise(res => setTimeout(res, ms));
 
+  // Get token once per request for downloading assets
+  let driveToken = null;
+  try {
+    const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT);
+    driveToken = await getGoogleToken(sa.client_email, sa.private_key, ['https://www.googleapis.com/auth/drive.readonly']);
+  } catch (e) { console.error("Failed to get drive token for downloads", e); }
+
   for (const item of items) {
     if (results.length > 0) await delay(500); // Rate limit: 500ms between Meta API calls
 
@@ -393,7 +410,11 @@ async function handleCreateDrafts(env, request) {
             const bytes = await res.arrayBuffer();
             const isVideo = asset.mime === "video/mp4" || asset.mime === "video/quicktime";
             if (isVideo) {
-              const vid = await uploadAdVideo({ ...fbArgs(env), accountId, bytes, filename: asset.name || "video.mp4" });
+              // Check if we already have a video_id for this asset from a previous attempt
+              let vid = asset.video_id;
+              if (!vid) {
+                vid = await uploadAdVideo({ ...fbArgs(env), accountId, bytes, filename: asset.name || "video.mp4" });
+              }
               finalVideos.push({ id: vid, format: asset.format });
             } else {
               const hash = await uploadAdImage({ ...fbArgs(env), accountId, bytes, filename: asset.name || "image.jpg" });
@@ -414,19 +435,31 @@ async function handleCreateDrafts(env, request) {
       }
 
       if (hasError) {
-        results.push({ row_id: rowId, ok: false, error: errorMsg });
+        // If we already pushed a retry message, don't push a failure
+        if (!results.some(r => r.row_id === rowId && r.video_id)) {
+          results.push({ row_id: rowId, ok: false, error: errorMsg });
+        }
         continue;
       }
 
       for (const v of finalVideos) {
         const ready = await waitVideoReady({ ...fbArgs(env), videoId: v.id });
         if (ready === "error") { hasError = true; errorMsg = "Meta could not process a video"; break; }
-        if (ready !== "ready") { hasError = true; errorMsg = "Video uploaded but still processing on Meta. Please click 'Create' again in 30 seconds."; break; }
+        if (ready !== "ready") { 
+          hasError = true; 
+          errorMsg = "Video uploaded but still processing on Meta. Please click 'Create' again in 30 seconds."; 
+          results.push({ row_id: rowId, ok: true, message: errorMsg, video_id: v.id });
+          break; 
+        }
         v.thumb = await getVideoThumbnail({ ...fbArgs(env), videoId: v.id });
       }
 
       if (hasError) {
-        results.push({ row_id: rowId, ok: false, error: errorMsg });
+        // Only push a failure if we haven't pushed a retry message
+        if (!results.some(r => r.row_id === rowId && r.message && r.message.includes("processing"))) {
+          results.push({ row_id: rowId, ok: false, error: errorMsg });
+          await auditFailure(env, { user: who, client: slug, account_id: accountId, adset_id: targetAdset, row_id: rowId, error: errorMsg });
+        }
         continue;
       }
 
@@ -493,21 +526,38 @@ async function handleCreateDrafts(env, request) {
             });
           }
 
+          if (!created || !created.ok) {
+            results.push({ row_id: rowId, ok: false, error: `Ad creation failed: ${created?.error || "unknown error"}` });
+            await auditFailure(env, { user: who, client: slug, account_id: accountId, adset_id: adsetId, row_id: rowId, error: `Ad creation failed: ${created?.error || "unknown error"}` });
+            continue;
+          }
+
           let qa = null;
           try { const q = await qaAd({ ...fbArgs(env), adId: created.ad_id, expectedPage: pageId || "", expectedAccount: accountId }); qa = { pass: q.pass, fails: q.fails, warns: q.warns }; } catch { qa = null; }
           await audit(env, { user: who, client: slug, account_id: accountId, adset_id: adsetId, row_id: rowId, ad_id: created.ad_id, qa });
           results.push({ row_id: rowId, ok: true, adset_id: adsetId, ...created, qa });
         } catch (e) {
           results.push({ row_id: rowId, ok: false, error: String(e?.message || e) });
+          await auditFailure(env, { user: who, client: slug, account_id: accountId, adset_id: adsetId, row_id: rowId, error: String(e?.message || e) });
         }
       }
     } catch (e) {
       results.push({ row_id: rowId, ok: false, error: String(e?.message || e) });
+      await auditFailure(env, { user: who, client: slug, account_id: accountId, adset_id: targetAdset, row_id: rowId, error: String(e?.message || e) });
     }
   }
   const created = results.filter((r) => r.ok).length;
   // Write-back: any row with ≥1 successful ad leaves the queue (cross-session dedupe).
-  const doneRowIds = [...new Set(results.filter((r) => r.ok).map((r) => r.row_id))];
+  // Only mark a row as done if ALL variants for that row succeeded and none are still processing
+  const rowStatus = {};
+  for (const r of results) {
+    if (!rowStatus[r.row_id]) rowStatus[r.row_id] = { hasSuccess: false, hasFailure: false, isProcessing: false };
+    if (r.ok && !r.message) rowStatus[r.row_id].hasSuccess = true;
+    if (r.ok && r.message) rowStatus[r.row_id].isProcessing = true;
+    if (!r.ok) rowStatus[r.row_id].hasFailure = true;
+  }
+  
+  const doneRowIds = Object.keys(rowStatus).filter(id => rowStatus[id].hasSuccess && !rowStatus[id].hasFailure && !rowStatus[id].isProcessing);
   await markUploaded(env, slug, doneRowIds);
   
   // Slack notifications

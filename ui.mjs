@@ -395,7 +395,14 @@ $('#create').onclick=async()=>{
  $('#status').textContent='Creating '+items.length+' PAUSED draft(s)…';
  try{const r=await fetch('/api/create-drafts',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({client,adset_id:adset||undefined,items})});
   const j=await r.json().catch(()=>({}));$('#status').textContent='';
-  const rows=(j.results||[]).map(x=>x.ok?'<div class="brow"><div><span class="badge b-ok">created PAUSED</span> '+esc(x.name||x.ad_id)+(x.qa?' <span class="badge '+(x.qa.pass?'b-ok':'b-warn')+'">QA '+(x.qa.pass?'pass':x.qa.fails+' fail')+'</span>':'')+'</div>'+(x.ads_manager_url?'<a class="cta" href="'+esc(x.ads_manager_url)+'" target="_blank">open in Ads Manager ↗</a>':'')+'</div>':'<div class="brow"><div><span class="badge b-bad">failed</span> '+esc(x.row_id)+' — '+esc(x.error||'')+'</div></div>').join('');
+  // Persist video IDs for retries
+  (j.results||[]).forEach(x => {
+    if (x.ok && x.video_id) {
+      getRow(x.row_id).assets.push({type:'video', id: x.video_id, format: 'unknown'});
+    }
+  });
+  
+  const rows=(j.results||[]).map(x=>x.ok?(x.message?'<div class="brow"><div><span class="badge b-warn">processing</span> '+esc(x.row_id)+' — '+esc(x.message)+'</div></div>':'<div class="brow"><div><span class="badge b-ok">created PAUSED</span> '+esc(x.name||x.ad_id)+(x.qa?' <span class="badge '+(x.qa.pass?'b-ok':'b-warn')+'">QA '+(x.qa.pass?'pass':x.qa.fails+' fail')+'</span>':'')+'</div>'+(x.ads_manager_url?'<a class="cta" href="'+esc(x.ads_manager_url)+'" target="_blank">open in Ads Manager ↗</a>':'')+'</div>'):'<div class="brow"><div><span class="badge b-bad">failed</span> '+esc(x.row_id)+' — '+esc(x.error||'')+'</div></div>').join('');
   $('#preview-out').innerHTML='<div class="section-h"><h2>Results — '+(j.created||0)+' of '+(j.requested||items.length)+' created PAUSED</h2></div><div class="card">'+rows+'</div><div class="muted" style="margin-top:10px">Drafted rows are removed from the queue. Review each draft in Ads Manager, then publish there. Nothing is live.</div>';
   // Write-back removed the drafted rows — refresh the bible list so they disappear.
   if((j.drafted_rows||[]).length){try{const b=await api('/api/bible?client='+encodeURIComponent(client));BIBLE=b.rows||[];BIBLE_SOURCE=b.source||'';(j.drafted_rows||[]).forEach(id=>SELECTED.delete(id));updateTabSelector();renderBible();}catch(_){}}

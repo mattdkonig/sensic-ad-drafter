@@ -4,5 +4,11 @@
     "google-auth-library": "^10.9.0",
     "papaparse": "^5.5.4",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.7"
+  },
+  "scripts": {
+    "test": "vitest run"
   }
 }
