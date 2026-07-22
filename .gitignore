@@ -2,3 +2,28 @@
 .wrangler/
 test-drive.mjs
 sync/service-account.json
+
+# Node and build
+node_modules/
+.vite/
+coverage/
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# Logs and temp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+patch-*.mjs
+
+node_modules/
+.vite/
+.env.local
+*.log
+coverage/
+
