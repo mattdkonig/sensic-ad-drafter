@@ -338,7 +338,7 @@ $('#preview').onclick=async()=>{
        }).join('')+
        (p.drive_skipped&&p.drive_skipped.length?'<div class="muted" style="font-size:12px;margin-top:8px">Skipped '+p.drive_skipped.length+' unsupported file(s)</div>':'')+'</div>';
      }
-     ctrl='<div class="pc-match">'+mb+'</div><label class="pc-l">Target ad set</label><select class="creative-adset" data-row="'+esc(p.row_id)+'">'+adsetOptionsHtml(m?m.adset.id:'')+'</select>'
+     ctrl='<div class="pc-match">'+mb+'</div><label class="pc-l">Target ad set</label><input type="search" class="creative-adset-search" placeholder="Search ad sets..." style="margin-bottom:4px;height:30px;font-size:12px;padding:4px 8px;"><select class="creative-adset" data-row="'+esc(p.row_id)+'">'+adsetOptionsHtml(m?m.adset.id:'')+'</select>'
       +'<label class="pc-l">Button (CTA)</label><select class="creative-cta" data-row="'+esc(p.row_id)+'">'+CTA_OPTS.map(o=>'<option value="'+o.t+'"'+(o.v===(p.cta&&p.cta.enum)?' selected':'')+'>'+o.t+'</option>').join('')+'</select>'
       +driveHtml
       +'<label class="pc-l" style="margin-top:12px">'+(driveHtml?'Or attach manually':'Creative')+' (JPG/PNG or MP4/MOV)</label><input type="file" accept="image/png,image/jpeg,video/mp4,video/quicktime" multiple class="creative-file" data-row="'+esc(p.row_id)+'">'

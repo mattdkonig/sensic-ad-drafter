@@ -1,4 +1,5 @@
 import { syncBibles } from "./lib/sync-worker.mjs";
+import { getGoogleToken } from "./lib/google-auth.mjs";
 // sensic-ad-drafter/worker.js
 // Team tool: turn the client bible into PAUSED draft ads in Meta, with a QA gate.
 // Subdir Worker (sibling to creative-brief / sensic-dispatcher). Reuses the proven
@@ -148,7 +149,12 @@ async function handlePreview(env, request) {
       let allErrors = [];
       
       for (const url of urls) {
-        const driveData = await resolveDriveLink(url, env.GOOGLE_DRIVE_API_KEY, plan.ad_name);
+        let driveToken = null;
+        try {
+          const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT);
+          driveToken = await getGoogleToken(sa.client_email, sa.private_key, ['https://www.googleapis.com/auth/drive.readonly']);
+        } catch (e) { console.error("Failed to get drive token", e); }
+        const driveData = await resolveDriveLink(url, driveToken, plan.ad_name);
         if (driveData.ok) {
           allFiles.push(...driveData.files);
           allSkipped.push(...driveData.skipped);
@@ -374,7 +380,15 @@ async function handleCreateDrafts(env, request) {
       for (const asset of assets) {
         if (asset.type === 'drive') {
           try {
-            const res = await fetch(asset.url);
+            const fetchOpts = {};
+            if (asset.url.includes("googleapis.com/drive")) {
+              try {
+                const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT);
+                const driveToken = await getGoogleToken(sa.client_email, sa.private_key, ['https://www.googleapis.com/auth/drive.readonly']);
+                fetchOpts.headers = { 'Authorization': `Bearer ${driveToken}` };
+              } catch (e) { console.error("Failed to get drive token for download", e); }
+            }
+            const res = await fetch(asset.url, fetchOpts);
             if (!res.ok) throw new Error(`Failed to download from Drive: ${res.status}`);
             const bytes = await res.arrayBuffer();
             const isVideo = asset.mime === "video/mp4" || asset.mime === "video/quicktime";

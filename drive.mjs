@@ -72,10 +72,10 @@ export function scoreMatch(fileName, adName) {
   return { score, reason: reason.join(", ") };
 }
 
-export async function resolveDriveLink(url, apiKey, adName = "") {
+export async function resolveDriveLink(url, token, adName = "") {
   const driveInfo = extractDriveId(url);
   if (!driveInfo) return { ok: false, error: "invalid_drive_url" };
-  if (!apiKey) return { ok: false, error: "no_drive_api_key" };
+  if (!token) return { ok: false, error: "no_drive_token" };
 
   try {
     let filesToProcess = [];
@@ -84,13 +84,13 @@ export async function resolveDriveLink(url, apiKey, adName = "") {
     if (driveInfo.type === "folder" || driveInfo.type === "unknown") {
       // Try as folder first
       const q = encodeURIComponent(`'${driveInfo.id}' in parents and trashed = false`);
-      const res = await fetch(`${DRIVE_API}/files?q=${q}&fields=${fields}&key=${apiKey}`);
+      const res = await fetch(`${DRIVE_API}/files?q=${q}&fields=${fields}`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
       
       if (data.error) {
         if (driveInfo.type === "unknown") {
           // Fallback to file
-          const fileRes = await fetch(`${DRIVE_API}/files/${driveInfo.id}?fields=id,name,mimeType,size,webContentLink,imageMediaMetadata,videoMediaMetadata&key=${apiKey}`);
+          const fileRes = await fetch(`${DRIVE_API}/files/${driveInfo.id}?fields=id,name,mimeType,size,webContentLink,imageMediaMetadata,videoMediaMetadata`, { headers: { 'Authorization': `Bearer ${token}` } });
           const fileData = await fileRes.json();
           if (fileData.error) return { ok: false, error: fileData.error.message };
           filesToProcess = [fileData];
@@ -102,7 +102,7 @@ export async function resolveDriveLink(url, apiKey, adName = "") {
       }
     } else {
       // It's a file
-      const fileRes = await fetch(`${DRIVE_API}/files/${driveInfo.id}?fields=id,name,mimeType,size,webContentLink,imageMediaMetadata,videoMediaMetadata&key=${apiKey}`);
+      const fileRes = await fetch(`${DRIVE_API}/files/${driveInfo.id}?fields=id,name,mimeType,size,webContentLink,imageMediaMetadata,videoMediaMetadata`, { headers: { 'Authorization': `Bearer ${token}` } });
       const fileData = await fileRes.json();
       if (fileData.error) return { ok: false, error: fileData.error.message };
       filesToProcess = [fileData];
@@ -154,7 +154,7 @@ export async function resolveDriveLink(url, apiKey, adName = "") {
           actualFormat: actualFormat,
           matchScore: match.score,
           matchReason: match.reason,
-          download_url: `${DRIVE_API}/files/${file.id}?alt=media&key=${apiKey}`
+          download_url: `${DRIVE_API}/files/${file.id}?alt=media`
         });
       } else {
         skippedFiles.push({ name: file.name, reason: "unsupported format" });
