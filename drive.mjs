@@ -142,7 +142,20 @@ export async function resolveDriveLink(url, token, adName = "") {
         const nameFormat = detectFormatFromName(file.name);
         const format = actualFormat !== "unknown" ? actualFormat : nameFormat;
         
-        const match = scoreMatch(file.name, adName);
+        // If filesToProcess is exactly 1 and we were explicitly given a file ID, it's a direct file
+        const isDirectFile = filesToProcess.length === 1 && driveInfo.type !== "folder";
+        
+        let matchScore = 0;
+        let matchReason = [];
+        
+        if (isDirectFile) {
+          matchScore = 1.0;
+          matchReason = ["Direct file link provided"];
+        } else {
+          const match = scoreMatch(file.name, adName);
+          matchScore = match.score;
+          matchReason = match.reason;
+        }
 
         validFiles.push({
           id: file.id,
@@ -152,8 +165,9 @@ export async function resolveDriveLink(url, token, adName = "") {
           format: format,
           nameFormat: nameFormat,
           actualFormat: actualFormat,
-          matchScore: match.score,
-          matchReason: match.reason,
+          matchScore: matchScore,
+          matchReason: matchReason,
+          isDirectFile: isDirectFile,
           download_url: `${DRIVE_API}/files/${file.id}?alt=media`
         });
       } else {
