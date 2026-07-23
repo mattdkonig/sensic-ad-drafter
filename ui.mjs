@@ -65,6 +65,7 @@ button:disabled{opacity:.45;cursor:not-allowed}.linkbtn{background:none;border:n
 <div id="banner"></div>
 <div class="grid">
   <div><label>1 · Client <button class="linkbtn hide" id="sync-client" style="float:right">↻ Sync from Google Sheet</button></label><select id="client"><option>Loading…</option></select></div>
+  <div id="account-container" class="hide"><label>1.5 · Account</label><select id="account"></select></div>
   <div><label>2 · Ad set <span class="muted">— default for rows that don't auto-match</span> <button class="linkbtn" id="new-adset" style="float:right">+ New ad set / campaign</button></label><input id="adset-search" class="hide" type="search" placeholder="Filter campaigns or ad sets…" autocomplete="off" style="margin-bottom:8px; height: 38px;"><select id="adset"><option>Select a client first</option></select></div>
 </div>
 <div class="grid"><div><label>Status of new ads</label><div class="pill">⏸&nbsp; PAUSED (draft) — never goes live automatically</div></div><div></div></div>
@@ -183,8 +184,9 @@ function adsetOptionsHtml(sel){
  }).join('');
 }
 function adsetSummary(a){if(!a)return'';const bits=[];if(a.objective)bits.push(a.objective.replace(/^OUTCOME_/,''));if(a.optimization_goal)bits.push(a.optimization_goal);if(a.budget_level==='cbo'&&a.campaign_budget)bits.push('CBO $'+a.campaign_budget);else if(a.daily_budget)bits.push('$'+a.daily_budget+'/day');else if(a.lifetime_budget)bits.push('$'+a.lifetime_budget+' lifetime');return bits.join(' · ');}
+let CLIENTS=[];
 async function initApp(){
- try{const d=await api('/api/clients');$('#client').innerHTML='<option value="">Select…</option>'+(d.clients||[]).map(c=>'<option value="'+esc(c.slug)+'">'+esc(c.name)+'</option>').join('');
+ try{const d=await api('/api/clients');CLIENTS=d.clients||[];$('#client').innerHTML='<option value="">Select…</option>'+CLIENTS.map(c=>'<option value="'+esc(c.slug)+'">'+esc(c.name)+'</option>').join('');
   let last='';try{last=localStorage.getItem('drafter:lastClient')||''}catch(_){}
   if(last&&[...$('#client').options].some(o=>o.value===last)){$('#client').value=last;$('#client').dispatchEvent(new Event('change'));}
  }catch(_){}}
@@ -303,7 +305,7 @@ $('#m-create').onclick=async()=>{
  const dupAdset=ADSETS.some(a=>nrm(a.name)===nrm(adsetName));
  const dupCamp=kind==='campaign'&&ADSETS.some(a=>nrm(a.campaign)===nrm(campaignName));
  if((dupAdset||dupCamp)&&!confirm('A '+(dupCamp?'campaign':'ad set')+' with that name already exists. Create another with the same name?'))return;
- const payload={client:slug,from_adset_id:src,kind,adset_name:adsetName,copy_ads:$('#m-copy-ads').checked};
+ const payload={client:slug,account_id:$('#account').value,from_adset_id:src,kind,adset_name:adsetName,copy_ads:$('#m-copy-ads').checked};
  if(kind==='campaign')payload.campaign_name=campaignName;
  if(amt){payload.budget_amount=Number(amt);payload.budget_type=btype;payload.budget_level=$('#m-budget-level').value;if(btype==='lifetime')payload.end_time=$('#m-end-time').value;}
  const btn=$('#m-create');btn.disabled=true;btn.textContent='Creating…';$('#m-err').textContent='';
@@ -314,7 +316,7 @@ $('#m-create').onclick=async()=>{
    if(d.applied&&d.applied.removed_ads!=null)msg+=' Started empty ('+esc(d.applied.removed_ads)+' copied ad(s) removed).';
    const warn=(d.warnings||[]).length;
    banner(msg+(warn?' Note: '+esc(d.warnings.join('; ')):' Ad sets refreshed.'),warn?'info':'ok');
-   const a=await api('/api/adsets?client='+encodeURIComponent(slug));ADSETS=a.adsets||[];renderAdsets();if(d.adset_id)$('#adset').value=d.adset_id;refresh();}
+   const a=await api('/api/adsets?client='+encodeURIComponent(slug)+'&account_id='+encodeURIComponent($('#account').value));ADSETS=a.adsets||[];renderAdsets();if(d.adset_id)$('#adset').value=d.adset_id;refresh();}
   else $('#m-err').textContent=d.message||'Could not create — try again.';
  }catch(_){$('#m-err').textContent='Create failed — check your connection and try again.';}
  finally{btn.disabled=false;btn.textContent='Create PAUSED';}
@@ -348,7 +350,7 @@ document.addEventListener('change',e=>{
 });
 $('#preview').onclick=async()=>{
  $('#status').textContent='Assembling…';$('#create').classList.add('hide');banner('');
- try{const d=await api('/api/preview',{method:'POST',body:JSON.stringify({client:$('#client').value,row_ids:selectedIds(),adset_id:$('#adset').value})});
+ try{const d=await api('/api/preview',{method:'POST',body:JSON.stringify({client:$('#client').value,account_id:$('#account').value,row_ids:selectedIds(),adset_id:$('#adset').value})});
   $('#status').textContent='';
   const plans=d.plans||[];const readyN=plans.filter(p=>p.ready).length;
   const matchedN=plans.filter(p=>p.ready&&adsetMatch(BIBLE.find(r=>r.id===p.row_id)||{})).length;
@@ -534,7 +536,7 @@ $('#create').onclick=async()=>{
   try{const fd=new FormData();fd.set('file',file);
    const isVid=(file.type||'').indexOf('video/')===0||/\\.(mp4|mov|m4v)$/i.test(file.name);
    if(isVid)$('#status').textContent='Uploading video '+done+' of '+files.length+' (Meta will process it)…';
-   const ep=(isVid?'/api/upload-video?client=':'/api/upload-image?client=')+encodeURIComponent(client);
+   const ep=(isVid?'/api/upload-video?client=':'/api/upload-image?client=')+encodeURIComponent(client)+'&account_id='+encodeURIComponent($('#account').value);
    const r=await fetch(ep,{method:'POST',credentials:'include',body:fd});const j=await r.json().catch(()=>({}));
    if(j.ok&&j.image_hash)getRow(row).assets.push({type:'image',hash:j.image_hash,format:'unknown'});
    else if(j.ok&&j.video_id) {
@@ -554,7 +556,7 @@ $('#create').onclick=async()=>{
  if(upErr.length)banner((items.length?'Some creatives failed to upload ('+upErr.length+' of '+files.length+'): ':'All uploads failed: ')+esc(upErr.join('; ')),'err');
  if(!items.length){$('#status').textContent='';$('#create').disabled=false;return}
  $('#status').textContent='Creating '+items.length+' PAUSED draft(s)…';
- try{const r=await fetch('/api/create-drafts',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({client,adset_id:adset||undefined,items})});
+ try{const r=await fetch('/api/create-drafts',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({client,account_id:$('#account').value,adset_id:adset||undefined,items})});
   const j=await r.json().catch(()=>({}));$('#status').textContent='';
   if (!r.ok || !j.ok) {
     $('#status').textContent = '';

@@ -105,11 +105,14 @@ async function handleAdsets(env, request, url) {
   if (!fbReady(env)) return json({ ok: false, code: "no_fb_token", message: "FB_ACCESS_TOKEN not configured" }, 503);
   const slug = url.searchParams.get("client");
   if (!slug) return json({ ok: false, code: "bad_request", message: "client query param required" }, 400);
-  const accountIds = accountsForSlug(slug);
-  if (!accountIds.length) return json({ ok: false, code: "unknown_client", message: `no account for client ${slug}` }, 404);
+  const accounts = accountsForSlug(slug);
+  if (!accounts.length) return json({ ok: false, code: "unknown_client", message: `no account for client ${slug}` }, 404);
+  
+  const accountId = url.searchParams.get("account_id") || accounts[0].id;
+  
   try {
-    const adsets = await listAdsets({ ...fbArgs(env), accountId: accountIds[0] });
-    return json({ ok: true, client: slug, name: nameForSlug(slug), account_id: accountIds[0], adsets });
+    const adsets = await listAdsets({ ...fbArgs(env), accountId });
+    return json({ ok: true, client: slug, name: nameForSlug(slug), accounts, account_id: accountId, adsets });
   } catch (e) {
     return json({ ok: false, code: "fb_error", message: String(e?.message || e) }, 502);
   }
@@ -129,9 +132,9 @@ async function handlePreview(env, request) {
   const body = await request.json().catch(() => ({}));
   const slug = body.client;
   if (!slug) return json({ ok: false, code: "bad_request", message: "client required" }, 400);
-  const accountIds = accountsForSlug(slug);
-  if (!accountIds.length) return json({ ok: false, code: "unknown_client", message: `no account for client ${slug}` }, 404);
-  const accountId = accountIds[0];
+  const accounts = accountsForSlug(slug);
+  if (!accounts.length) return json({ ok: false, code: "unknown_client", message: `no account for client ${slug}` }, 404);
+  const accountId = body.account_id || accounts[0].id;
 
   let pageId = null;
   if (fbReady(env)) { try { pageId = await accountCanonicalPage(fbArgs(env).token, fbArgs(env).secret, accountId); } catch { pageId = null; } }
@@ -223,7 +226,9 @@ async function handleNewAdset(env, request) {
   const a = await requireAuth(env, request); if (a) return a;
   if (!fbReady(env)) return json({ ok: false, code: "no_fb_token", message: "FB_ACCESS_TOKEN not configured" }, 503);
   const body = await request.json().catch(() => ({}));
-  if (!accountsForSlug(body.client).length) return json({ ok: false, code: "unknown_client", message: "unknown client" }, 404);
+  const accounts = accountsForSlug(body.client);
+  if (!accounts.length) return json({ ok: false, code: "unknown_client", message: "unknown client" }, 404);
+  const accountId = body.account_id || accounts[0].id;
   if (!body.from_adset_id) return json({ ok: false, code: "bad_request", message: "from_adset_id required (copy source)" }, 400);
   const kind = body.kind === "campaign" ? "campaign" : "adset";
   const adsetName = String(body.adset_name || body.name || "").trim() || null;
@@ -242,7 +247,7 @@ async function handleNewAdset(env, request) {
 
   // copyObject renames the copied object: the campaign (campaign kind) or the ad set (adset kind).
   const renameTo = kind === "campaign" ? campaignName : adsetName;
-  const accountId = accountsForSlug(body.client)[0];
+
   try {
     const r = await copyObject({ ...fbArgs(env), kind, accountId, fromAdsetId: body.from_adset_id, name: renameTo });
     const newId = r?.id || null;
@@ -270,8 +275,9 @@ async function handleUploadImage(env, request, url) {
   const a = await requireAuth(env, request); if (a) return a;
   if (!fbReady(env)) return json({ ok: false, code: "no_fb_token", message: "FB_ACCESS_TOKEN not configured" }, 503);
   const slug = url.searchParams.get("client");
-  const accountIds = accountsForSlug(slug);
-  if (!accountIds.length) return json({ ok: false, code: "unknown_client", message: `no account for ${slug}` }, 404);
+  const accounts = accountsForSlug(slug);
+  if (!accounts.length) return json({ ok: false, code: "unknown_client", message: `no account for ${slug}` }, 404);
+  const accountId = url.searchParams.get("account_id") || accounts[0].id;
   let form;
   try { form = await request.formData(); } catch { return json({ ok: false, code: "bad_request", message: "expected multipart form-data" }, 400); }
   const file = form.get("file");
@@ -281,7 +287,7 @@ async function handleUploadImage(env, request, url) {
   if (file.size > 30 * 1024 * 1024) return json({ ok: false, code: "too_large", message: "image exceeds 30MB" }, 400);
   try {
     const bytes = await file.arrayBuffer();
-    const hash = await uploadAdImage({ ...fbArgs(env), accountId: accountIds[0], bytes, filename: name });
+    const hash = await uploadAdImage({ ...fbArgs(env), accountId, bytes, filename: name });
     return json({ ok: true, image_hash: hash, filename: name });
   } catch (e) {
     return json({ ok: false, code: "fb_error", message: String(e?.message || e) }, 502);
@@ -294,8 +300,9 @@ async function handleUploadVideo(env, request, url) {
   const a = await requireAuth(env, request); if (a) return a;
   if (!fbReady(env)) return json({ ok: false, code: "no_fb_token", message: "FB_ACCESS_TOKEN not configured" }, 503);
   const slug = url.searchParams.get("client");
-  const accountIds = accountsForSlug(slug);
-  if (!accountIds.length) return json({ ok: false, code: "unknown_client", message: `no account for ${slug}` }, 404);
+  const accounts = accountsForSlug(slug);
+  if (!accounts.length) return json({ ok: false, code: "unknown_client", message: `no account for ${slug}` }, 404);
+  const accountId = url.searchParams.get("account_id") || accounts[0].id;
   let form;
   try { form = await request.formData(); } catch { return json({ ok: false, code: "bad_request", message: "expected multipart form-data" }, 400); }
   const file = form.get("file");
@@ -305,7 +312,7 @@ async function handleUploadVideo(env, request, url) {
   if (file.size > 200 * 1024 * 1024) return json({ ok: false, code: "too_large", message: "video exceeds 200MB" }, 400);
   try {
     const bytes = await file.arrayBuffer();
-    const videoId = await uploadAdVideo({ ...fbArgs(env), accountId: accountIds[0], bytes, filename: name });
+    const videoId = await uploadAdVideo({ ...fbArgs(env), accountId, bytes, filename: name });
     return json({ ok: true, video_id: videoId, filename: name });
   } catch (e) {
     return json({ ok: false, code: "fb_error", message: String(e?.message || e) }, 502);
@@ -324,9 +331,9 @@ async function handleCreateDrafts(env, request) {
   const items = Array.isArray(body.items) ? body.items : [];
   if (!slug || !items.length) return json({ ok: false, code: "bad_request", message: "client and items[] required" }, 400);
   if (!defaultAdset && !items.every((it) => it.adset_id)) return json({ ok: false, code: "bad_request", message: "each item needs an adset_id, or pass a default adset_id" }, 400);
-  const accountIds = accountsForSlug(slug);
-  if (!accountIds.length) return json({ ok: false, code: "unknown_client", message: `no account for ${slug}` }, 404);
-  const accountId = accountIds[0];
+  const accounts = accountsForSlug(slug);
+  if (!accounts.length) return json({ ok: false, code: "unknown_client", message: `no account for ${slug}` }, 404);
+  const accountId = body.account_id || accounts[0].id;
   const who = await currentEmail(env, request);
 
   let pageId = null;

@@ -16,12 +16,12 @@ const BIBLE_SEED = bibles;
 
 // All accounts for a client slug (some clients have >1 ad account).
 export function accountsForSlug(slug) {
-  const ids = [];
+  const accounts = [];
   for (const [id, v] of Object.entries(accountMap)) {
     if (id.startsWith("_")) continue;
-    if (v.slug === slug) ids.push(id);
+    if (v.slug === slug) accounts.push({ id, name: v.name });
   }
-  return ids;
+  return accounts;
 }
 
 export function nameForSlug(slug) {
