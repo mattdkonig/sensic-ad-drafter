@@ -321,9 +321,30 @@ $('#m-create').onclick=async()=>{
 };
 const selectedIds=()=>[...SELECTED];
 const refresh=()=>{$('#preview').disabled=!SELECTED.size;if(window.__plans){window.__plans=null;$('#create').classList.add('hide');$('#preview-out').innerHTML='<div class="muted" style="margin-top:12px">Selection changed — click Preview to refresh.</div>';}};
+let lastChecked = null;
+document.addEventListener('click', e => {
+  if(e.target.classList.contains('rowcb')) {
+    const checkboxes = Array.from(document.querySelectorAll('.rowcb'));
+    if (e.shiftKey && lastChecked) {
+      const start = checkboxes.indexOf(lastChecked);
+      const end = checkboxes.indexOf(e.target);
+      const inBetween = checkboxes.slice(Math.min(start, end), Math.max(start, end) + 1);
+      inBetween.forEach(cb => {
+        cb.checked = e.target.checked;
+        if (cb.checked) SELECTED.add(cb.value);
+        else SELECTED.delete(cb.value);
+      });
+    } else {
+      if (e.target.checked) SELECTED.add(e.target.value);
+      else SELECTED.delete(e.target.value);
+    }
+    lastChecked = e.target;
+    updateCount();
+    refresh();
+  }
+});
 document.addEventListener('change',e=>{
- if(e.target.classList.contains('rowcb')){if(e.target.checked)SELECTED.add(e.target.value);else SELECTED.delete(e.target.value);updateCount();refresh();}
- else if(e.target.id==='adset')refresh();
+ if(e.target.id==='adset')refresh();
 });
 $('#preview').onclick=async()=>{
  $('#status').textContent='Assembling…';$('#create').classList.add('hide');banner('');
