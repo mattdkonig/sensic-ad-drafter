@@ -12,6 +12,7 @@ import { assemblePlan, normalizeCta } from "./assembly.mjs";
 import { UI_HTML } from "./ui.mjs";
 import { issueSession, verifySession, readCookie, SESSION_COOKIE, setCookieHeader, clearCookieHeader } from "./auth.mjs";
 import { resolveDriveLink, extractMultipleDriveUrls } from "./drive.mjs";
+import { getJob, saveJob, generateJobId } from "./lib/jobs.mjs";
 
 const BUILD_LABEL = "v1.0.4-bulletproof";
 
