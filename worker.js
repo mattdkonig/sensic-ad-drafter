@@ -188,8 +188,10 @@ async function handlePreview(env, request) {
       if (allErrors.length > 0) {
         // If the error is permission denied, it's a FAIL, not a WARN
         const hasPermissionError = allErrors.some(e => e === "DRIVE_PERMISSION_DENIED_OR_NOT_SHARED");
-        if (hasPermissionError) {
-          plan.issues.push({ level: "FAIL", msg: "Drive permission denied. File/folder is not shared with the Drafter service account. Action required: Share the source folder with sensic-drafter-sync@sensic-reporting.iam.gserviceaccount.com or use the Staging workflow." });
+        const hasNotFoundError = allErrors.some(e => e === "DRIVE_FILE_NOT_FOUND_OR_DELETED");
+        
+        if (hasPermissionError || hasNotFoundError) {
+          plan.issues.push({ level: "FAIL", msg: `Drive access failed (${hasPermissionError ? 'Permission Denied' : 'Not Found'}). The file/folder is either deleted, or not shared with the Drafter service account. Action required: Share the source folder with sensic-drafter-sync@sensic-reporting.iam.gserviceaccount.com or use the Staging workflow.` });
           plan.ready = false;
         } else {
           plan.issues.push({ level: "WARN", msg: `Drive resolution had errors: ${allErrors.join(", ")}` });
@@ -198,8 +200,8 @@ async function handlePreview(env, request) {
       
       if (urls.length > 0) {
         if (plan.drive_files.length === 0) {
-          // Only add the "no acceptable finals" error if we didn't already fail due to permissions
-          if (!allErrors.some(e => e === "DRIVE_PERMISSION_DENIED_OR_NOT_SHARED")) {
+          // Only add the "no acceptable finals" error if we didn't already fail due to permissions/not found
+          if (!allErrors.some(e => e === "DRIVE_PERMISSION_DENIED_OR_NOT_SHARED" || e === "DRIVE_FILE_NOT_FOUND_OR_DELETED")) {
             plan.issues.push({ level: "FAIL", msg: "Drive link(s) contain no Meta-acceptable finals (JPG/PNG/MP4)" });
             plan.ready = false;
           }
