@@ -488,9 +488,46 @@ $('#create').onclick=async()=>{
  const active=tids.map(adsetById).filter(a=>a&&a.status==='ACTIVE');
  const totalCount=files.length+driveFiles.length;
  const uniqueRows=new Set([...files.map(f=>f.row),...driveFiles.map(f=>f.row)]).size;
- let msg='Create '+uniqueRows+' PAUSED draft ad(s) (using '+totalCount+' creative assets) across '+tids.length+' ad set'+(tids.length===1?'':'s')+':\\n\\n• '+tnames.join('\\n• ')+'\\n\\nThe ads are created PAUSED — they will NOT go live; you review and publish in Ads Manager.';
- if(active.length)msg+='\\n\\nNote: '+active.length+' target ad set'+(active.length===1?' is':'s are')+' ACTIVE, but the new ads stay PAUSED regardless.';
- if(!confirm(msg))return;
+ 
+ // Create custom batch confirmation modal
+ const modalHtml = '<div class="modal-backdrop" id="batch-modal" style="display:flex;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">' +
+  '<div class="modal" style="max-width:600px;background:var(--bg);padding:24px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.2);width:100%;">' +
+   '<div class="modal-title" style="font-size:18px;font-weight:600;margin-bottom:16px;">Confirm Batch Creation</div>' +
+   '<div style="margin-bottom:16px;line-height:1.5">' +
+    '<div><strong>Client:</strong> ' + esc(client) + '</div>' +
+    '<div><strong>Rows:</strong> ' + uniqueRows + ' ready row(s)</div>' +
+    '<div><strong>Assets:</strong> ' + totalCount + ' creative asset(s)</div>' +
+    '<div><strong>Target Ad Sets:</strong> ' + tids.length + ' ad set(s)</div>' +
+    '<div style="margin-top:8px;padding:8px;background:var(--panel2);border-radius:4px;font-size:12px;max-height:100px;overflow-y:auto">' +
+      tnames.map(n => '• ' + esc(n)).join('<br>') +
+    '</div>' +
+    (active.length ? '<div class="m-err" style="margin-top:12px;color:var(--bad);">Note: ' + active.length + ' target ad set(s) are ACTIVE, but the new ads stay PAUSED regardless.</div>' : '') +
+    '<div style="margin-top:16px;padding:12px;background:var(--panel);border-radius:6px;border:1px solid var(--line)">' +
+      '<strong>Summary:</strong> The ads are created PAUSED — they will NOT go live; you review and publish in Ads Manager.' +
+    '</div>' +
+   '</div>' +
+   '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:12px;margin-top:24px;">' +
+    '<button id="batch-cancel" style="padding:8px 16px;">Cancel</button>' +
+    '<button class="primary" id="batch-confirm" style="padding:8px 16px;">Create all ready as PAUSED</button>' +
+   '</div>' +
+  '</div>' +
+ '</div>';
+ 
+ document.body.insertAdjacentHTML('beforeend', modalHtml);
+ 
+ await new Promise(resolve => {
+   $('#batch-cancel').onclick = () => {
+     $('#batch-modal').remove();
+     resolve(false);
+   };
+   $('#batch-confirm').onclick = () => {
+     $('#batch-modal').remove();
+     resolve(true);
+   };
+ }).then(confirmed => {
+   if (!confirmed) throw new Error('CANCELLED');
+ });
+
  $('#create').disabled=true;const itemsByRow={};const upErr=[];let done=0;
  const getRow=(row)=>{if(!itemsByRow[row])itemsByRow[row]={row_id:row,cta:ctaByRow[row]||undefined,adset_id:targets[row]||undefined,assets:[]};return itemsByRow[row];};
  for(const {row,file} of files){done++;$('#status').textContent='Uploading attached creative '+done+' of '+files.length+'…';
@@ -519,6 +556,12 @@ $('#create').onclick=async()=>{
  $('#status').textContent='Creating '+items.length+' PAUSED draft(s)…';
  try{const r=await fetch('/api/create-drafts',{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify({client,adset_id:adset||undefined,items})});
   const j=await r.json().catch(()=>({}));$('#status').textContent='';
+  if (!r.ok || !j.ok) {
+    $('#status').textContent = '';
+    banner('Create request failed: ' + (j.message || j.error || 'Server Error'), 'err');
+    $('#create').disabled = false;
+    return;
+  }
   // Persist video IDs for retries durably
   (j.results||[]).forEach(x => {
     if (x.ok && x.video_id) {

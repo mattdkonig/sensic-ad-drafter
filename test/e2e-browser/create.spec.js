@@ -51,6 +51,11 @@ test('Failed create request preserves UI state and shows error', async ({ page }
   // Wait for bible rows to load
   await page.waitForSelector('.rowcb');
   
+  // Select an ad set
+  await page.waitForFunction(() => document.querySelector('#adset option[value="adset1"]'));
+  await page.locator('#adset').selectOption('adset1');
+  expect(await page.locator('#adset').inputValue()).toBe('adset1');
+
   // Select a row
   await page.locator('.rowcb').check();
 

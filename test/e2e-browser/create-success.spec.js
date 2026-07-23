@@ -55,6 +55,11 @@ test('Successful create request transitions to Results and preserves state', asy
   // Wait for bible rows to load
   await page.waitForSelector('.rowcb');
   
+  // Select an ad set
+  await page.waitForFunction(() => document.querySelector('#adset option[value="adset1"]'));
+  await page.locator('#adset').selectOption('adset1');
+  expect(await page.locator('#adset').inputValue()).toBe('adset1');
+
   // Select a row
   await page.locator('.rowcb').check();
 
@@ -72,6 +77,6 @@ test('Successful create request transitions to Results and preserves state', asy
 
   // Wait for success screen
   await page.waitForSelector('text=Results — 1 of 1 created PAUSED');
-  const successText = await page.locator('.section-h h2').textContent();
+  const successText = await page.locator('.section-h h2').last().textContent();
   expect(successText).toContain('Results — 1 of 1 created PAUSED');
 });
