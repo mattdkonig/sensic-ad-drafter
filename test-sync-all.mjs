@@ -14,10 +14,14 @@ const clients = [
 async function run() {
   const loginRes = await fetch('https://sensic-ad-drafter.matt-0c3.workers.dev/api/login', {
     method: 'POST',
-    body: JSON.stringify({ password: 'DrafterPass2026!' }),
+    body: JSON.stringify({ email: 'matt@sensicdigital.com', password: 'DrafterPass2026!' }),
     headers: { 'Content-Type': 'application/json' }
   });
   const cookie = loginRes.headers.get('set-cookie');
+  if (!cookie) {
+    console.error("Login failed:", await loginRes.text());
+    return;
+  }
 
   const results = {};
   for (const client of clients) {
@@ -37,8 +41,8 @@ async function run() {
   // Clean up the output to just show the summary stats per client
   const summary = {};
   for (const [client, result] of Object.entries(results)) {
-    if (result.ok && result[client]) {
-      summary[client] = result[client].stats;
+    if (result.ok && result.results && result.results[client]) {
+      summary[client] = result.results[client].stats;
     } else {
       summary[client] = result;
     }
