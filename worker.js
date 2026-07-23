@@ -13,6 +13,7 @@ import { UI_HTML } from "./ui.mjs";
 import { issueSession, verifySession, readCookie, SESSION_COOKIE, setCookieHeader, clearCookieHeader } from "./auth.mjs";
 import { resolveDriveLink, extractMultipleDriveUrls } from "./drive.mjs";
 import { getJob, saveJob, generateJobId } from "./lib/jobs.mjs";
+import { stageAsset } from "./lib/staging.mjs";
 
 const BUILD_LABEL = "v1.0.4-bulletproof";
 
@@ -188,7 +189,7 @@ async function handlePreview(env, request) {
         // If the error is permission denied, it's a FAIL, not a WARN
         const hasPermissionError = allErrors.some(e => e === "DRIVE_PERMISSION_DENIED_OR_NOT_SHARED");
         if (hasPermissionError) {
-          plan.issues.push({ level: "FAIL", msg: "Drive permission denied. File/folder is not shared with the Drafter service account." });
+          plan.issues.push({ level: "FAIL", msg: "Drive permission denied. File/folder is not shared with the Drafter service account. Action required: Share the source folder with sensic-drafter-sync@sensic-reporting.iam.gserviceaccount.com or use the Staging workflow." });
           plan.ready = false;
         } else {
           plan.issues.push({ level: "WARN", msg: `Drive resolution had errors: ${allErrors.join(", ")}` });
