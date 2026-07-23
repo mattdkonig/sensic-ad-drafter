@@ -153,8 +153,13 @@ async function handlePreview(env, request) {
 
   for (const r of selected) {
     const plan = assemblePlan(r, { pageId });
-    if (env.WORKFLOW_MODE !== "manual" && r.creatives_folder) { // Removed GOOGLE_DRIVE_API_KEY dependency
-      const urls = extractMultipleDriveUrls(r.creatives_folder);
+    if (env.WORKFLOW_MODE !== "manual" && (r.creatives_folder || (r.creativeSources && r.creativeSources.length > 0))) {
+      let urls = [];
+      if (r.creativeSources && r.creativeSources.length > 0) {
+        urls = r.creativeSources.map(s => s.url);
+      } else {
+        urls = extractMultipleDriveUrls(r.creatives_folder);
+      }
       
       let allFiles = [];
       let allSkipped = [];
@@ -180,13 +185,23 @@ async function handlePreview(env, request) {
       plan.drive_skipped = allSkipped;
       
       if (allErrors.length > 0) {
-        plan.issues.push({ level: "WARN", msg: `Drive resolution had errors: ${allErrors.join(", ")}` });
+        // If the error is permission denied, it's a FAIL, not a WARN
+        const hasPermissionError = allErrors.some(e => e === "DRIVE_PERMISSION_DENIED_OR_NOT_SHARED");
+        if (hasPermissionError) {
+          plan.issues.push({ level: "FAIL", msg: "Drive permission denied. File/folder is not shared with the Drafter service account." });
+          plan.ready = false;
+        } else {
+          plan.issues.push({ level: "WARN", msg: `Drive resolution had errors: ${allErrors.join(", ")}` });
+        }
       }
       
       if (urls.length > 0) {
         if (plan.drive_files.length === 0) {
-          plan.issues.push({ level: "FAIL", msg: "Drive link(s) contain no Meta-acceptable finals (JPG/PNG/MP4)" });
-          plan.ready = false;
+          // Only add the "no acceptable finals" error if we didn't already fail due to permissions
+          if (!allErrors.some(e => e === "DRIVE_PERMISSION_DENIED_OR_NOT_SHARED")) {
+            plan.issues.push({ level: "FAIL", msg: "Drive link(s) contain no Meta-acceptable finals (JPG/PNG/MP4)" });
+            plan.ready = false;
+          }
         } else {
           plan.issues = plan.issues.filter(i => !i.msg.includes("no Drive creatives folder linked"));
           plan.issues.push({ level: "INFO", msg: `Resolved ${plan.drive_files.length} creative(s) from Drive` });
