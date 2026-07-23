@@ -9,8 +9,8 @@ export function extractDriveId(url) {
   if (folderMatch) return { id: folderMatch[1], type: "folder" };
   const fileMatch = url.match(/file\/d\/([a-zA-Z0-9_-]+)/);
   if (fileMatch) return { id: fileMatch[1], type: "file" };
-  const idMatch = url.match(/id=([a-zA-Z0-9_-]+)/);
-  if (idMatch) return { id: idMatch[1], type: "unknown" };
+  const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idMatch) return { id: idMatch[1], type: "unknown" }; // Could be file or folder
   return null;
 }
 
@@ -87,15 +87,18 @@ export async function resolveDriveLink(url, token, adName = "") {
       const res = await fetch(`${DRIVE_API}/files?q=${q}&fields=${fields}`, { headers: { 'Authorization': `Bearer ${token}` } });
       const data = await res.json();
       
-      if (data.error) {
+      if (data.error || (driveInfo.type === "unknown" && (!data.files || data.files.length === 0))) {
         if (driveInfo.type === "unknown") {
           // Fallback to file
           const fileRes = await fetch(`${DRIVE_API}/files/${driveInfo.id}?fields=id,name,mimeType,size,webContentLink,imageMediaMetadata,videoMediaMetadata`, { headers: { 'Authorization': `Bearer ${token}` } });
           const fileData = await fileRes.json();
-          if (fileData.error) return { ok: false, error: fileData.error.message };
+          if (fileData.error) {
+             if (data.error) return { ok: false, error: data.error.message }; // Return original folder error if both fail
+             return { ok: false, error: fileData.error.message };
+          }
           filesToProcess = [fileData];
         } else {
-          return { ok: false, error: data.error.message };
+          return { ok: false, error: data.error ? data.error.message : "Folder is empty" };
         }
       } else {
         filesToProcess = data.files || [];

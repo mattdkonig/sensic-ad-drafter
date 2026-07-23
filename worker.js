@@ -13,7 +13,7 @@ import { UI_HTML } from "./ui.mjs";
 import { issueSession, verifySession, readCookie, SESSION_COOKIE, setCookieHeader, clearCookieHeader } from "./auth.mjs";
 import { resolveDriveLink, extractMultipleDriveUrls } from "./drive.mjs";
 
-const BUILD_LABEL = "v1.0.1-p0-fix";
+const BUILD_LABEL = "v1.0.2-drive-links";
 
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
