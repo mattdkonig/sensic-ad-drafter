@@ -389,8 +389,8 @@ async function handleCreateDrafts(env, request) {
     const adsetId = item.adset_id || defaultAdset;
     if (!adsetId) { results.push({ row_id: rowId, ok: false, error: "no ad set for this row (no match and no default selected)" }); continue; }
     
-    let job = await getJob(env, generateJobId(slug, rowId, adsetId));
-    if (!job) job = { jobId: generateJobId(slug, rowId, adsetId), client: slug, rowId, assets: {}, variants: {} };
+    let job = await getJob(env, generateJobId(slug, rowId, adsetId, assets));
+    if (!job) job = { jobId: generateJobId(slug, rowId, adsetId, assets), client: slug, rowId, assets: {}, variants: {} };
     
     try {
       let created;
