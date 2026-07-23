@@ -23,4 +23,10 @@ describe('UI Requirements', () => {
   it('Search changes actual ad-set results', () => {
     expect(uiCode).toContain("opt.style.display = isVisible ? '' : 'none'");
   });
+  
+  it('Preview card correctly renders CTA and Drive HTML without dropping them', () => {
+    // We patched the string concatenation bug. The code should use parts.join('')
+    expect(uiCode).toContain("ctrl = parts.join('');");
+    expect(uiCode).not.toContain("'<input type=\"hidden\" class=\"creative-adset\" data-row=\"'+esc(p.row_id)+'\" value=\"'+esc(selAdset)+'\">';");
+  });
 });

@@ -378,16 +378,20 @@ $('#preview').onclick=async()=>{
      }
      const selAdset = m ? m.adset.id : '';
      const selName = m ? m.adset.name : 'Default';
-     ctrl='<div class="pc-match">'+mb+'</div><label class="pc-l">Target ad set</label>' +
-          '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">' +
-          '<button class="adset-override-btn" data-row="'+esc(p.row_id)+'" data-selected="'+esc(selAdset)+'" style="flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;font-size:12px;cursor:pointer">' +
-          (selAdset ? esc(selName) : '— use default ad set —') + '</button>' +
-          '</div>' +
-          '<input type="hidden" class="creative-adset" data-row="'+esc(p.row_id)+'" value="'+esc(selAdset)+'">';
-      +'<label class="pc-l">Button (CTA)</label><select class="creative-cta" data-row="'+esc(p.row_id)+'">'+CTA_OPTS.map(o=>'<option value="'+o.t+'"'+(o.v===(p.cta&&p.cta.enum)?' selected':'')+'>'+o.t+'</option>').join('')+'</select>'
-      +driveHtml
-      +'<label class="pc-l" style="margin-top:12px">'+(driveHtml?'Or attach manually':'Creative')+' (JPG/PNG or MP4/MOV)</label><input type="file" accept="image/png,image/jpeg,video/mp4,video/quicktime" multiple class="creative-file" data-row="'+esc(p.row_id)+'">'
-      +(row.creatives_folder?'<a class="pc-l" style="display:block;color:var(--accent);margin-top:8px" href="'+esc(row.creatives_folder)+'" target="_blank" rel="noopener">📁 Open creative folder ↗</a>':'');
+     
+     const parts = [
+       '<div class="pc-match">'+mb+'</div><label class="pc-l">Target ad set</label>',
+       '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">',
+       '<button class="adset-override-btn" data-row="'+esc(p.row_id)+'" data-selected="'+esc(selAdset)+'" style="flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:6px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;font-size:12px;cursor:pointer">',
+       (selAdset ? esc(selName) : '— use default ad set —') + '</button>',
+       '</div>',
+       '<input type="hidden" class="creative-adset" data-row="'+esc(p.row_id)+'" value="'+esc(selAdset)+'">',
+       '<label class="pc-l">Button (CTA)</label><select class="creative-cta" data-row="'+esc(p.row_id)+'">'+CTA_OPTS.map(o=>'<option value="'+o.t+'"'+(o.v===(p.cta&&p.cta.enum)?' selected':'')+'>'+o.t+'</option>').join('')+'</select>',
+       driveHtml,
+       '<label class="pc-l" style="margin-top:12px">'+(driveHtml?'Or attach manually':'Creative')+' (JPG/PNG or MP4/MOV)</label><input type="file" accept="image/png,image/jpeg,video/mp4,video/quicktime" multiple class="creative-file" data-row="'+esc(p.row_id)+'">',
+       (row.creatives_folder?'<a class="pc-l" style="display:block;color:var(--accent);margin-top:8px" href="'+esc(row.creatives_folder)+'" target="_blank" rel="noopener">📁 Open creative folder ↗</a>':'')
+     ];
+     ctrl = parts.join('');
     }
     return '<div class="pcard"><div class="thumb">🖼</div><div class="pc-b"><div class="pc-t">'+esc(p.ad_name)+'</div><div class="pc-m">'+mhtml+'</div>'+b+' '+iss+ctrl+'</div></div>'}).join('')+'</div>';
   const ctaAll=$('#cta-all');if(ctaAll)ctaAll.onchange=()=>{document.querySelectorAll('.creative-cta').forEach(s=>{s.value=ctaAll.value})};

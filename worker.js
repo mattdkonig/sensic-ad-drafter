@@ -13,7 +13,7 @@ import { UI_HTML } from "./ui.mjs";
 import { issueSession, verifySession, readCookie, SESSION_COOKIE, setCookieHeader, clearCookieHeader } from "./auth.mjs";
 import { resolveDriveLink, extractMultipleDriveUrls } from "./drive.mjs";
 
-const BUILD_LABEL = "v1.0.3-shift-click";
+const BUILD_LABEL = "v1.0.4-bulletproof";
 
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
@@ -384,8 +384,12 @@ async function handleCreateDrafts(env, request) {
       else if (item.image_url) assets.push({ type: 'image_url', url: item.image_url, format: 'unknown' });
     }
 
+    
     const adsetId = item.adset_id || defaultAdset;
     if (!adsetId) { results.push({ row_id: rowId, ok: false, error: "no ad set for this row (no match and no default selected)" }); continue; }
+    
+    let job = await getJob(env, generateJobId(slug, rowId, adsetId));
+    if (!job) job = { jobId: generateJobId(slug, rowId, adsetId), client: slug, rowId, assets: {}, variants: {} };
     
     try {
       let created;
@@ -394,8 +398,18 @@ async function handleCreateDrafts(env, request) {
       let hasError = false;
       let errorMsg = "";
 
+
+      
       for (const asset of assets) {
+        const assetKey = asset.url || asset.hash || asset.id;
+        if (job.assets && job.assets[assetKey]) {
+          if (job.assets[assetKey].type === 'video') finalVideos.push(job.assets[assetKey]);
+          else finalImages.push(job.assets[assetKey]);
+          continue;
+        }
+        
         if (asset.type === 'drive') {
+
           try {
             const fetchOpts = {};
             if (asset.url.includes("googleapis.com/drive")) {
@@ -426,9 +440,17 @@ async function handleCreateDrafts(env, request) {
             break;
           }
         } else if (asset.type === 'image') {
-          finalImages.push({ hash: asset.hash, format: asset.format });
+          
+            finalImages.push({ hash: asset.hash, format: asset.format, type: 'image' });
+            job.assets[assetKey] = { hash: asset.hash, format: asset.format, type: 'image' };
+            await saveJob(env, job);
+
         } else if (asset.type === 'video') {
-          finalVideos.push({ id: asset.id, format: asset.format });
+          
+            finalVideos.push({ id: asset.id, format: asset.format, type: 'video' });
+            job.assets[assetKey] = { id: asset.id, format: asset.format, type: 'video' };
+            await saveJob(env, job);
+
         } else if (asset.type === 'image_url') {
           finalImages.push({ url: asset.url, format: asset.format });
         }
@@ -628,10 +650,19 @@ async function handleAudit(env, request, url) {
   if (!env.DRAFTER_KV) return json({ ok: true, entries: [], note: "no audit store" });
   const limit = Math.min(Number(url.searchParams.get("limit")) || 25, 100);
   try {
-    const list = await env.DRAFTER_KV.list({ prefix: "audit:", limit: 200 });
-    const keys = (list.keys || []).map((k) => k.name).sort().reverse().slice(0, limit);
+    const [successList, failList] = await Promise.all([
+      env.DRAFTER_KV.list({ prefix: "audit:", limit: 100 }),
+      env.DRAFTER_KV.list({ prefix: "audit_fail:", limit: 100 })
+    ]);
+    const allKeys = [...(successList.keys || []), ...(failList.keys || [])];
+    const keys = allKeys.map((k) => k.name).sort().reverse().slice(0, limit);
     const entries = [];
-    for (const k of keys) { try { const v = await env.DRAFTER_KV.get(k, "json"); if (v) entries.push(v); } catch { /* skip */ } }
+    for (const k of keys) { 
+      try { 
+        const v = await env.DRAFTER_KV.get(k, "json"); 
+        if (v) entries.push({ ...v, _key: k, _status: k.startsWith("audit_fail") ? "fail" : "success" }); 
+      } catch { /* skip */ } 
+    }
     return json({ ok: true, entries });
   } catch (e) {
     return json({ ok: false, code: "kv_error", message: String(e?.message || e) }, 502);
