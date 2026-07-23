@@ -1,0 +1,80 @@
+{
+  "homemade": {
+    "name": "Homemade",
+    "spreadsheetId": "1sX3RR1TFtQxvI1RtVL9gqlLOaAuI8NjcJECgEERb9PQ",
+    "requiredTab": "Feedback",
+    "gid": "0"
+  },
+  "xero-shoes": {
+    "name": "Xero Shoes",
+    "spreadsheetId": "1VSWIpn43CZ7CGly4J723z9sXBJpGQMfYE1XI9LfaA88",
+    "requiredTab": "Feedback",
+    "gid": "1266832789"
+  },
+  "mypause": {
+    "name": "MyPause Health",
+    "spreadsheetId": "1k0jmrhKVtXKwwqF9DPOdhJ-RB0V97bxPSDf0rMDftDA",
+    "requiredTab": "Feedback",
+    "gid": "56476933"
+  },
+  "macros": {
+    "name": "Macros",
+    "spreadsheetId": "1yOVeNc0B12FjHUxYq7x9bnH6OiN0o_Me1apWDSC783A",
+    "requiredTab": "Feedback",
+    "gid": "1970169452"
+  },
+  "soulara": {
+    "name": "Soulara",
+    "spreadsheetId": "1OYEVZWSp5TRnqrE8siVFdxAIyuuq36lM5Wp3DQ4HmT8",
+    "requiredTab": "Client Bible",
+    "gid": "1795453801"
+  },
+  "double-roasters": {
+    "name": "Double Roasters",
+    "spreadsheetId": "1LeOGWbQcpyuGmlkIgM7yajYBcWwE6Hj2yZd5WYZEEGM",
+    "requiredTab": "Ad Tracker",
+    "gid": "1355660925"
+  },
+  "koa-kids": {
+    "name": "Koa Kids",
+    "spreadsheetId": "1B3R7nKYuYab3qpv4vVG9upDIBHod0mqE0wb3GOUdGOI",
+    "requiredTab": "Feedback",
+    "gid": "1940857896"
+  },
+  "therapy-lights": {
+    "name": "Therapy Lights",
+    "spreadsheetId": "1s5ZWMXZJWDjm-ri6GODV2kc3qFd6vtqbB6wGoS9fbpM",
+    "requiredTab": "Client Bible",
+    "gid": "1713790773"
+  },
+  "reignite": {
+    "name": "Reignite Retreats",
+    "spreadsheetId": "1EcxjEA1EDOsD0hRHHFXFkZj3LFunADdilQRFJljLTpM",
+    "requiredTab": "Feedback",
+    "gid": "1820294253"
+  },
+  "chief-aus": {
+    "name": "Chief AUS",
+    "spreadsheetId": "1LDbTkKB41pU5wMQjJdu-_EeayWq9eFHWgaFG_IoM2AI",
+    "requiredTab": "Ad Tracker",
+    "gid": "1830017544"
+  },
+  "chief-usa": {
+    "name": "Chief USA",
+    "spreadsheetId": "1LDbTkKB41pU5wMQjJdu-_EeayWq9eFHWgaFG_IoM2AI",
+    "requiredTab": "US Tracker",
+    "gid": "1507244475"
+  },
+  "aussie-pharma": {
+    "name": "Aussie Pharma",
+    "spreadsheetId": "1TJpnK1Snc4dU0xZOPoTDT-8gn541s77lkqnqfQF5xvY",
+    "requiredTab": "Ad Tracker",
+    "gid": "1355660925"
+  },
+  "shredded": {
+    "name": "Shredded",
+    "spreadsheetId": "1ibbeurzDIvfGLu96h0hy6z0ISB0zWjsKudbQ7kxVbKU",
+    "requiredTab": "Ad Tracker",
+    "gid": "1355660925"
+  }
+}

@@ -2,7 +2,7 @@ import fs from "fs";
 import { GoogleAuth } from 'google-auth-library';
 import { execSync } from "child_process";
 
-const CONFIG = JSON.parse(fs.readFileSync('./sync/config.json', 'utf-8'));
+const CONFIG = JSON.parse(fs.readFileSync('./config/client-bibles.json', 'utf-8'));
 
 async function writeBack() {
   console.log("Initializing Google Auth for Write-Back...");
